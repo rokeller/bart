@@ -1,14 +1,14 @@
 package main
 
 import (
-	"backup/archiving"
 	"flag"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"backup/inspection"
+	"github.com/rokeller/bart/archiving"
+	"github.com/rokeller/bart/inspection"
 
 	"github.com/howeyc/gopass"
 )

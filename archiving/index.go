@@ -1,8 +1,8 @@
 package archiving
 
 import (
-	"backup/domain"
-	"backup/inspection"
+	"github.com/rokeller/bart/domain"
+	"github.com/rokeller/bart/inspection"
 )
 
 // Index manages the index of an archive

@@ -1,14 +1,15 @@
 package archiving
 
 import (
-	"backup/crypto"
-	"backup/domain"
-	"backup/inspection"
 	"bytes"
 	"compress/gzip"
 	"io"
 	"io/ioutil"
 	"log"
+
+	"github.com/rokeller/bart/crypto"
+	"github.com/rokeller/bart/domain"
+	"github.com/rokeller/bart/inspection"
 )
 
 type cryptoArchive struct {

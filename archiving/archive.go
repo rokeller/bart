@@ -1,14 +1,15 @@
 package archiving
 
 import (
-	"backup/domain"
-	"backup/inspection"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"path"
 	"time"
+
+	"github.com/rokeller/bart/domain"
+	"github.com/rokeller/bart/inspection"
 )
 
 // Archive defines the contract for an Archive.

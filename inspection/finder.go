@@ -1,11 +1,12 @@
 package inspection
 
 import (
-	"backup/domain"
 	"io/ioutil"
 	"log"
 	"os"
 	"path"
+
+	"github.com/rokeller/bart/domain"
 )
 
 // Visitor defines the contract for a visitor of a finder.

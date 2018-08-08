@@ -1,10 +1,11 @@
 package main
 
 import (
-	"backup/archiving"
-	"backup/inspection"
 	"log"
 	"time"
+
+	"github.com/rokeller/bart/archiving"
+	"github.com/rokeller/bart/inspection"
 )
 
 type archivingVisitor struct {

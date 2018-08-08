@@ -1,12 +1,12 @@
 package archiving
 
 import (
-	"backup/domain"
-	"backup/inspection"
-
 	"encoding/binary"
 	"io"
 	"log"
+
+	"github.com/rokeller/bart/domain"
+	"github.com/rokeller/bart/inspection"
 
 	"github.com/golang/protobuf/proto"
 )
