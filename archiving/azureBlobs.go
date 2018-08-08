@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/rokeller/bart/crypto"
 	"github.com/rokeller/bart/domain"
@@ -23,7 +24,8 @@ const (
 
 // AzureContext provides the context for operations in Azure.
 type AzureContext struct {
-	service azblob.ServiceURL
+	credential azblob.Credential
+	service    azblob.ServiceURL
 }
 
 // NewAzureContext creates a new context for managing archive blobs in Azure.
@@ -33,7 +35,8 @@ func NewAzureContext(accountName, accountKey string) AzureContext {
 	u, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net", accountName))
 
 	return AzureContext{
-		service: azblob.NewServiceURL(*u, pipe),
+		credential: cred,
+		service:    azblob.NewServiceURL(*u, pipe),
 	}
 }
 
@@ -96,8 +99,19 @@ func (a *azureArchiveContext) getUploadWriter(blobKey string) io.WriteCloser {
 	}
 }
 
-func (a *azureArchiveContext) uploadBlobFromReader(blobKey string, rs io.ReadSeeker) {
+func (a *azureArchiveContext) uploadBlobFromReader(blobKey string, rs io.ReadSeeker, len int64) {
 	u := a.container.NewBlockBlobURL(blobKey)
+
+	// Calculate the size (in MB) and the resulting timeout we should use.
+	lenMb := int(len / 1024 / 1024)
+	timeout := time.Duration(60+(60*lenMb)) * time.Second
+
+	u = u.WithPipeline(azblob.NewPipeline(a.credential, azblob.PipelineOptions{
+		Retry: azblob.RetryOptions{
+			TryTimeout: timeout,
+		},
+	}))
+
 	_, err := u.Upload(a.Context, rs, azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{})
 
 	if nil != err {
@@ -289,11 +303,18 @@ func (u *uploadWriter) Close() error {
 	defer os.Remove(u.path)
 	defer u.file.Close()
 
+	// Get the length of the temp file.
+	len, err := u.file.Seek(0, io.SeekCurrent)
+
+	if nil != err {
+		log.Panicf("Failed to determine length of file: %v", err)
+	}
+
 	// Seek back to the start of the temp file to prepare for the upload.
 	u.file.Seek(0, io.SeekStart)
 
 	// Upload the blob to Azure.
-	u.azureArchiveContext.uploadBlobFromReader(u.blobKey, u.file)
+	u.azureArchiveContext.uploadBlobFromReader(u.blobKey, u.file, len)
 
 	return nil
 }
