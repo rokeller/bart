@@ -1,0 +1,6 @@
+syntax = "proto2";
+package domain;
+
+message Settings {
+    required bytes salt = 1;
+}
