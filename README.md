@@ -24,4 +24,6 @@ bart supports the following:
         The key of the Azure Storage Account to which to backup the files.
 ```
 Example:
-```./bart -name my-pictures -path ~/Pictures -account example -key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/yyyyyyyyyyyyyyyyyyyy/zzzzzzzzzzzzzzzzzzzzzz==```
+```
+./bart -name my-pictures -path ~/Pictures -account example -key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/yyyyyyyyyyyyyyyyyyyy/zzzzzzzzzzzzzzzzzzzzzz==
+```
