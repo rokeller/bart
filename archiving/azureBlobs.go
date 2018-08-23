@@ -2,6 +2,8 @@ package archiving
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -20,6 +22,10 @@ import (
 const (
 	blobKeySettings = "settings"
 	blobKeyIndex    = "index"
+
+	mb            = 1024 * 1024
+	maxBlockSize  = 100 * mb
+	maxUploadSize = 256 * mb
 )
 
 // AzureContext provides the context for operations in Azure.
@@ -99,24 +105,72 @@ func (a *azureArchiveContext) getUploadWriter(blobKey string) io.WriteCloser {
 	}
 }
 
-func (a *azureArchiveContext) uploadBlobFromReader(blobKey string, rs io.ReadSeeker, len int64) {
+func (a *azureArchiveContext) uploadBlobFromFile(blobKey string, file *os.File, len int64) {
 	u := a.container.NewBlockBlobURL(blobKey)
 
-	// Calculate the size (in MB) and the resulting timeout we should use.
-	lenMb := int(len / 1024 / 1024)
-	timeout := time.Duration(60+(60*lenMb)) * time.Second
+	if len > maxUploadSize {
+		// The file length exceeds the maximum allowed upload size, so upload blocks that then get committed together.
+		a.uploadBlobBlocks(u, file, len)
+	} else {
+		// Upload the entire file with a single request.
+		a.uploadBlob(u, file, len)
+	}
+}
 
-	u = u.WithPipeline(azblob.NewPipeline(a.credential, azblob.PipelineOptions{
+func (a *azureArchiveContext) uploadBlob(blob azblob.BlockBlobURL, reader io.ReadSeeker, len int64) {
+	u := a.getUploadPipeline(blob, len)
+
+	// Upload the file with a single request.
+	_, err := u.Upload(a.Context, reader, azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{})
+
+	if nil != err {
+		log.Panicf("Failed to upload blob: %v", err)
+	}
+}
+
+func (a *azureArchiveContext) uploadBlobBlocks(blob azblob.BlockBlobURL, reader io.ReaderAt, len int64) {
+	blockIds := make([]string, 0)
+
+	for offset := int64(0); offset < len; offset += maxBlockSize {
+		blockLen := len - offset
+
+		if blockLen > maxBlockSize {
+			blockLen = maxBlockSize
+		}
+
+		blockID := a.uploadBlock(blob, reader, offset, blockLen)
+		blockIds = append(blockIds, blockID)
+	}
+
+	_, err := blob.CommitBlockList(a.Context, blockIds, azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{})
+
+	if nil != err {
+		log.Panicf("Failed to commit block blob list: %v", err)
+	}
+}
+
+func (a *azureArchiveContext) uploadBlock(blob azblob.BlockBlobURL, reader io.ReaderAt, offset, len int64) string {
+	u := a.getUploadPipeline(blob, len)
+	blockID := getRandomBlockID()
+	block := io.NewSectionReader(reader, offset, len)
+	_, err := u.StageBlock(a.Context, blockID, block, azblob.LeaseAccessConditions{})
+
+	if nil != err {
+		log.Panicf("Failed to upload block %s of blob %s: %v", blockID, blob.String(), err)
+	}
+
+	return blockID
+}
+
+func (a *azureArchiveContext) getUploadPipeline(blob azblob.BlockBlobURL, len int64) azblob.BlockBlobURL {
+	timeout := getRequestTimeout(len)
+	u := blob.WithPipeline(azblob.NewPipeline(a.credential, azblob.PipelineOptions{
 		Retry: azblob.RetryOptions{
 			TryTimeout: timeout,
 		},
 	}))
 
-	_, err := u.Upload(a.Context, rs, azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{})
-
-	if nil != err {
-		log.Panicf("Failed to upload blob: %v", err)
-	}
+	return u
 }
 
 func (a *azureArchiveContext) downloadBlob(blobKey string, failIfNotFound bool) io.ReadCloser {
@@ -128,7 +182,6 @@ func (a *azureArchiveContext) downloadBlob(blobKey string, failIfNotFound bool) 
 		case azblob.StorageError:
 			switch terr.ServiceCode() { // Compare serviceCode to various ServiceCodeXxx constants
 			case azblob.ServiceCodeBlobNotFound:
-				log.Println("The blob does not exist.")
 				if failIfNotFound {
 					log.Panicf("The blob was not found: %v", err)
 				} else {
@@ -221,10 +274,10 @@ func (a *azureArchive) Backup(ctx inspection.Context) {
 		return
 	}
 
-	fmt.Printf("AddOrUpdate  %s", ctx.RelPath())
-	fmt.Println()
-
 	archiveBlobKey := a.getArchivedRelFilePath(ctx.RelPath())
+
+	fmt.Printf("AddOrUpdate  %s  ->  %s", ctx.RelPath(), archiveBlobKey)
+	fmt.Println()
 
 	w := a.getUploadWriter(archiveBlobKey)
 	defer w.Close()
@@ -314,7 +367,24 @@ func (u *uploadWriter) Close() error {
 	u.file.Seek(0, io.SeekStart)
 
 	// Upload the blob to Azure.
-	u.azureArchiveContext.uploadBlobFromReader(u.blobKey, u.file, len)
+	u.azureArchiveContext.uploadBlobFromFile(u.blobKey, u.file, len)
 
 	return nil
+}
+
+func getRequestTimeout(len int64) time.Duration {
+	// Calculate the timeout to use from the size (in MB). We allow about 60 seconds per MB plus an additional 60 seconds.
+	lenMb := int(len / mb)
+	timeout := time.Duration(60+(60*lenMb)) * time.Second
+
+	return timeout
+}
+
+func getRandomBlockID() string {
+	b := make([]byte, 12)
+	if _, err := rand.Read(b); nil != err {
+		log.Panicf("Failed to generate random block ID: %v", err)
+	}
+
+	return base64.StdEncoding.EncodeToString(b)
 }
