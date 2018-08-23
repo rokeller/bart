@@ -42,10 +42,11 @@ func (a *fsCryptoArchive) Backup(ctx inspection.Context) {
 		return
 	}
 
-	fmt.Printf("AddOrUpdate  %s", ctx.RelPath())
+	archiveFilePath := a.getArchivedFilePath(ctx.RelPath(), true)
+
+	fmt.Printf("AddOrUpdate  %s  ->  %s", ctx.RelPath(), archiveFilePath)
 	fmt.Println()
 
-	archiveFilePath := a.getArchivedFilePath(ctx.RelPath(), true)
 	outfile, err := os.Create(archiveFilePath)
 
 	if nil != err {
