@@ -1,3 +1,5 @@
+// +build !files
+
 package archiving
 
 import (
@@ -199,6 +201,15 @@ func (a *azureArchiveContext) downloadBlob(blobKey string, failIfNotFound bool) 
 	return res.Body(azblob.RetryReaderOptions{})
 }
 
+func (a *azureArchiveContext) removeBlob(blobKey string) {
+	u := a.container.NewBlockBlobURL(blobKey)
+	_, err := u.Delete(a.Context, azblob.DeleteSnapshotsOptionInclude, azblob.BlobAccessConditions{})
+
+	if nil != err {
+		log.Panicf("Failed to remove archive blob: %v", err)
+	}
+}
+
 // ***** Settings *****
 
 type azureSettings struct {
@@ -295,8 +306,15 @@ func (a *azureArchive) Restore(entry domain.Entry) {
 	a.restore(entry, r)
 }
 
-func (a *azureArchive) RestoreMissing() {
-	a.restoreMissing(a)
+func (a *azureArchive) Delete(entry domain.Entry) {
+	archiveBlobKey := a.getArchivedRelFilePath(entry.RelPath)
+	a.azureArchiveContext.removeBlob(archiveBlobKey)
+
+	a.delete(entry)
+}
+
+func (a *azureArchive) HandleMissing(handler MissingFileHandler) {
+	a.handleMissing(a, handler)
 }
 
 // ***** Index *****
@@ -331,13 +349,16 @@ func (i *azureIndex) Load() {
 }
 
 func (i *azureIndex) Store() {
-	w := i.azureArchiveContext.getUploadWriter(blobKeyIndex)
-	defer w.Close()
+	if i.dirty {
+		w := i.azureArchiveContext.getUploadWriter(blobKeyIndex)
+		defer w.Close()
 
-	cryptoWriter := i.wrapWriter(w)
-	defer cryptoWriter.Close()
+		cryptoWriter := i.wrapWriter(w)
+		defer cryptoWriter.Close()
 
-	i.store(cryptoWriter)
+		i.store(cryptoWriter)
+		log.Printf("Updated index.")
+	}
 }
 
 type uploadWriter struct {

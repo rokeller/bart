@@ -12,12 +12,18 @@ import (
 	"github.com/rokeller/bart/inspection"
 )
 
+// MissingFileHandler defines the contract for a handler of missing files.
+type MissingFileHandler interface {
+	HandleMissing(archive Archive, entry domain.Entry)
+}
+
 // Archive defines the contract for an Archive.
 type Archive interface {
 	Backup(ctx inspection.Context)
 	Restore(entry domain.Entry)
+	Delete(entry domain.Entry)
 
-	RestoreMissing()
+	HandleMissing(handler MissingFileHandler)
 
 	Close()
 }
@@ -33,16 +39,14 @@ func (a *archiveBase) Close() {
 	a.index.Store()
 }
 
-func (a *archiveBase) restoreMissing(impl Archive) {
+func (a *archiveBase) handleMissing(impl Archive, handler MissingFileHandler) {
 	for relPath, meta := range a.missingFiles {
 		fmt.Printf("Missing local file '%v' ... ", relPath)
-
-		impl.Restore(domain.Entry{
+		handler.HandleMissing(impl, domain.Entry{
 			RelPath:       relPath,
 			EntryMetadata: meta,
 		})
-
-		fmt.Println(" restored.")
+		fmt.Println()
 	}
 }
 
@@ -119,4 +123,8 @@ func (a *archiveBase) restore(entry domain.Entry, archiveReader io.Reader) {
 	// Restore the timestamps to be the ones from the backup index metadata.
 	ts := time.Unix(entry.Timestamp, 0)
 	os.Chtimes(restorePath, ts, ts)
+}
+
+func (a *archiveBase) delete(entry domain.Entry) {
+	a.index.Remove(entry.RelPath)
 }

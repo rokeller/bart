@@ -73,6 +73,7 @@ func (s *streamSettings) storeSettings(w io.Writer) {
 type streamIndex struct {
 	index domain.BackupIndex
 
+	dirty          bool
 	entriesRead    int
 	entriesWritten int
 }
@@ -114,10 +115,12 @@ func (si *streamIndex) shouldAddOrUpdate(ctx inspection.Context) bool {
 
 func (si *streamIndex) AddOrUpdate(entry domain.Entry) {
 	si.index[entry.RelPath] = entry.EntryMetadata
+	si.dirty = true
 }
 
 func (si *streamIndex) Remove(relPath string) {
 	delete(si.index, relPath)
+	si.dirty = true
 }
 
 func (si *streamIndex) NumEntriesRead() int {

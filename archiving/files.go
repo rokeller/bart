@@ -1,3 +1,5 @@
+// +build files
+
 package archiving
 
 import (
@@ -14,6 +16,58 @@ import (
 	"github.com/rokeller/bart/inspection"
 )
 
+// ***** Settings *****
+
+type fileSettings struct {
+	path string
+
+	*streamSettings
+}
+
+func newFileSettings(rootPath string) Settings {
+	path := path.Join(rootPath, ".settings")
+
+	return &fileSettings{
+		path: path,
+		streamSettings: &streamSettings{
+			settingsBase: &settingsBase{},
+		},
+	}
+}
+
+func (s *fileSettings) GetSalt() []byte {
+	file, err := os.Open(s.path)
+
+	if os.IsNotExist(err) {
+		s.GenerateSalt()
+	} else if nil != err {
+		log.Panicf("The settings file could not be opened: %v", err)
+	} else {
+		defer file.Close()
+		s.loadSettings(file)
+	}
+	defer s.uploadIfDirty()
+
+	return s.salt
+}
+
+func (s *fileSettings) uploadIfDirty() {
+	if !s.dirty {
+		return
+	}
+
+	file, err := os.Create(s.path)
+
+	if nil != err {
+		log.Panicf("Failed to create settings file: %v", err)
+	}
+
+	defer file.Close()
+
+	s.storeSettings(file)
+	s.dirty = false
+}
+
 // ***** Archive *****
 
 type fsCryptoArchive struct {
@@ -22,10 +76,19 @@ type fsCryptoArchive struct {
 }
 
 // NewFileArchive creates a new file system based archive.
-func NewFileArchive(archiveRoot, localRoot, name string, cryptoCtx *crypto.Context) Archive {
+func NewFileArchive(archiveRoot, localRoot, name, password string) Archive {
+	targetRoot := path.Join(archiveRoot, name)
+
+	if err := os.MkdirAll(targetRoot, 0700); nil != err {
+		log.Panicf("Failed to create directory: %v", err)
+	}
+
+	settings := newFileSettings(targetRoot)
+	cryptoCtx := crypto.NewContext(password, settings.GetSalt())
+
 	base := (&archiveBase{
 		localRoot: localRoot,
-		index:     newFileIndex(cryptoCtx, archiveRoot, name, true),
+		index:     newFileIndex(cryptoCtx, targetRoot, true),
 	}).init()
 
 	return &fsCryptoArchive{
@@ -71,8 +134,13 @@ func (a *fsCryptoArchive) Restore(entry domain.Entry) {
 	a.restore(entry, infile)
 }
 
-func (a *fsCryptoArchive) RestoreMissing() {
-	a.restoreMissing(a)
+func (a *fsCryptoArchive) Delete(entry domain.Entry) {
+	a.removeArchiveFile(entry.RelPath)
+	a.delete(entry)
+}
+
+func (a *fsCryptoArchive) HandleMissing(handler MissingFileHandler) {
+	a.handleMissing(a, handler)
 }
 
 func (a *fsCryptoArchive) getArchivedFilePath(relPath string, createDirs bool) string {
@@ -90,6 +158,21 @@ func (a *fsCryptoArchive) getArchivedFilePath(relPath string, createDirs bool) s
 	return path.Join(a.root, archivedRelPath)
 }
 
+func (a *fsCryptoArchive) removeArchiveFile(relPath string) {
+	archiveFilePath := a.getArchivedFilePath(relPath, false)
+
+	if err := os.Remove(archiveFilePath); nil != err {
+		log.Panicf("Failed to remove archive file: %v", err)
+	}
+
+	parent := path.Dir(archiveFilePath)
+
+	if err := os.Remove(parent); nil == err {
+		parent = path.Dir(parent)
+		os.Remove(parent)
+	}
+}
+
 // ***** Index *****
 
 type fsCryptoIndex struct {
@@ -98,13 +181,13 @@ type fsCryptoIndex struct {
 	*cryptoIndex
 }
 
-func newFileIndex(cryptoCtx *crypto.Context, basePath, name string, compress bool) Index {
+func newFileIndex(cryptoCtx *crypto.Context, rootPath string, compress bool) Index {
 	var filePath string
 
 	if compress {
-		filePath = path.Join(basePath, name+".gz.index")
+		filePath = path.Join(rootPath, ".index.gz.encrypted")
 	} else {
-		filePath = path.Join(basePath, name+".index")
+		filePath = path.Join(rootPath, ".index.encrypted")
 	}
 
 	return &fsCryptoIndex{
@@ -125,10 +208,13 @@ func (i *fsCryptoIndex) Load() {
 }
 
 func (i *fsCryptoIndex) Store() {
-	w := i.getWriter()
-	defer w.Close()
+	if i.dirty {
+		w := i.getWriter()
+		defer w.Close()
 
-	i.store(w)
+		i.store(w)
+		log.Printf("Updated index.")
+	}
 }
 
 func (i *fsCryptoIndex) getReader() io.ReadCloser {
@@ -152,12 +238,4 @@ func (i *fsCryptoIndex) getWriter() io.WriteCloser {
 	}
 
 	return i.cryptoIndex.wrapWriter(file)
-}
-
-type writeCloser struct {
-	io.Writer
-}
-
-func (w writeCloser) Close() error {
-	return nil
 }

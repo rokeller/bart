@@ -16,27 +16,22 @@ import (
 func main() {
 	name := flag.String("name", "backup", "The name of the backup archive.")
 	root := flag.String("path", ".", "The path to the directory to backup and/or restore.")
-	restoreMissing := flag.Bool("m", false, "If set, restores files missing locally.")
-	accountName := flag.String("acct", "", "The Azure Storage Account name.")
-	accountKey := flag.String("key", "", "The Azure Storage Account Key.")
+	missingBehavior := flag.String("m", "noop", "A behavior for files missing locally: 'noop' to do nothing, 'restore' to restore them from the backup, 'delete' to delete them in the backup archive.")
+	updateFlags()
 	flag.Parse()
 
 	backupName := strings.TrimSpace(*name)
 
 	if "" == backupName {
 		log.Fatalf("The backup name must not be empty.")
-	} else if "" == *accountName {
-		log.Fatalf("The Azure Storage Account name (acct) must not be empty.")
-	} else if "" == *accountKey {
-		log.Fatalf("The Azure Storage Account key (key) must not be empty.")
+	} else {
+		verifyFlags()
 	}
 
 	password := readPassword()
 	rootPath, _ := filepath.Abs(os.ExpandEnv(*root))
-	log.Printf("Backup '%s' as '%s' to Azure.", rootPath, backupName)
 
-	azCtx := archiving.NewAzureContext(*accountName, *accountKey)
-	archive := archiving.NewAzureArchive(azCtx, rootPath, backupName, password)
+	archive := newArchive(backupName, rootPath, password)
 	defer archive.Close()
 
 	finder := inspection.NewFileFinder(rootPath)
@@ -45,11 +40,21 @@ func main() {
 		archive: archive,
 	})
 
-	if *restoreMissing {
-		archive.RestoreMissing()
+	var handler archiving.MissingFileHandler
+
+	switch *missingBehavior {
+	case "restore":
+		handler = RestoreMissingFileHandler()
+
+	case "delete":
+		handler = DeleteMissingFileHandler()
+
+	default:
+	case "noop":
+		handler = NoopMissingFileHandler()
 	}
 
-	archive.Close()
+	archive.HandleMissing(handler)
 }
 
 func readPassword() string {
