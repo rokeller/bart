@@ -1,4 +1,7 @@
 syntax = "proto2";
+
+option go_package = ".;domain";
+
 package domain;
 
 message IndexEntry {
