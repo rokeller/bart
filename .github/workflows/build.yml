@@ -21,6 +21,11 @@ jobs:
       with:
         go-version-file: 'go.mod'
 
+    - name: Install protoc-gen-go
+      run: |
+        go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+        echo "PATH=$GOPATH/bin" >> $GITHUB_ENV
+
     - name: Generate
       run: go generate -v ./...
 
