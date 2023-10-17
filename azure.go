@@ -1,4 +1,4 @@
-// +build !files
+//go:build !files
 
 package main
 
@@ -6,30 +6,33 @@ import (
 	"flag"
 	"log"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/rokeller/bart/archiving"
 )
 
 var (
-	accountName *string
-	accountKey  *string
+	serviceURL *string
 )
 
 func updateFlags() {
-	accountName = flag.String("acct", "", "The Azure Storage Account name.")
-	accountKey = flag.String("key", "", "The Azure Storage Account Key.")
+	serviceURL = flag.String("azep", "", "The blob service endpoint URL.")
 }
 
 func verifyFlags() {
-	if "" == *accountName {
-		log.Fatalf("The Azure Storage Account name (acct) must not be empty.")
-	} else if "" == *accountKey {
-		log.Fatalf("The Azure Storage Account key (key) must not be empty.")
+	if "" == *serviceURL {
+		log.Fatalf("The Azure blob service endpoint URL must not be empty.")
 	}
 }
 
 func newArchive(backupName, rootPath, password string) archiving.Archive {
 	log.Printf("Backup '%s' as '%s' to Azure.", rootPath, backupName)
-	azCtx := archiving.NewAzureContext(*accountName, *accountKey)
+
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		log.Fatalf("Credentials for Azure could not be found; error: %v", err)
+	}
+
+	azCtx := archiving.NewAzureContextFromTokenCredential(*serviceURL, cred)
 	archive := archiving.NewAzureArchive(azCtx, rootPath, backupName, password)
 
 	return archive

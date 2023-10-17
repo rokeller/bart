@@ -21,6 +21,10 @@ bart: $(GOFILES) $(PBGOFILES)
 %.pb.go: %.proto
 	protoc --go_out=. $<
 
+update-dependencies:
+	go get -u ./...
+	go mod tidy
+
 clean:
 	rm -f bart bart.x86.exe bart.x64.exe || true
 	find ./ -type f -name '*.pb.go' -delete || true

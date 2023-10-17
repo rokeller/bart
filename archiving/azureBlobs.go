@@ -1,85 +1,71 @@
-// +build !files
+//go:build !files
 
 package archiving
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
-	"net/url"
 	"os"
-	"time"
 
 	"github.com/rokeller/bart/crypto"
 	"github.com/rokeller/bart/domain"
 	"github.com/rokeller/bart/inspection"
 
-	"github.com/Azure/azure-storage-blob-go/2018-03-28/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 )
 
 const (
 	blobKeySettings = "settings"
 	blobKeyIndex    = "index"
-
-	mb            = 1024 * 1024
-	maxBlockSize  = 100 * mb
-	maxUploadSize = 256 * mb
 )
 
 // AzureContext provides the context for operations in Azure.
 type AzureContext struct {
-	credential azblob.Credential
-	service    azblob.ServiceURL
+	client *azblob.Client
 }
 
-// NewAzureContext creates a new context for managing archive blobs in Azure.
-func NewAzureContext(accountName, accountKey string) AzureContext {
-	cred := azblob.NewSharedKeyCredential(accountName, accountKey)
-	pipe := azblob.NewPipeline(cred, azblob.PipelineOptions{})
-	u, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net", accountName))
+// NewAzureContextFromTokenCredential creates a new context for managing archive blobs in Azure.
+func NewAzureContextFromTokenCredential(serviceURL string, cred azcore.TokenCredential) AzureContext {
+	client, _ := azblob.NewClient(serviceURL, cred, nil)
 
 	return AzureContext{
-		credential: cred,
-		service:    azblob.NewServiceURL(*u, pipe),
+		client: client,
 	}
 }
 
 type azureArchiveContext struct {
 	AzureContext
-	container azblob.ContainerURL
+
+	container string
 	context.Context
 }
 
 func (a AzureContext) newAzureArchiveContext(name string) azureArchiveContext {
-	u := a.service.NewContainerURL(name)
 	ctx := context.Background()
 
 	return azureArchiveContext{
 		AzureContext: a,
-		container:    u,
+		container:    name,
 		Context:      ctx,
 	}.init()
 }
 
 func (a azureArchiveContext) init() azureArchiveContext {
-	_, err := a.container.Create(a.Context, azblob.Metadata{}, azblob.PublicAccessNone)
+	createOptions := &azblob.CreateContainerOptions{
+		Metadata: map[string]*string{"owner": to.Ptr("bart")},
+	}
+	_, err := a.client.CreateContainer(a.Context, a.container, createOptions)
 
 	if nil != err {
-		switch terr := err.(type) {
-		case azblob.StorageError:
-			switch terr.ServiceCode() { // Compare serviceCode to various ServiceCodeXxx constants
-			case azblob.ServiceCodeContainerAlreadyExists:
-				log.Println("The container already exists.")
-				return a
-
-			default:
-				log.Panicf("The container could not be created, service response: %v", terr)
-			}
-		default:
+		if bloberror.HasCode(err, bloberror.ContainerAlreadyExists, bloberror.ResourceAlreadyExists) {
+			log.Println("The container already exists.")
+		} else {
 			log.Panicf("The container could not be created: %v", err)
 		}
 
@@ -91,11 +77,11 @@ func (a azureArchiveContext) init() azureArchiveContext {
 	return a
 }
 
-func (a *azureArchiveContext) getUploadWriter(blobKey string) io.WriteCloser {
+func (a *azureArchiveContext) getUploadWriter(blobKey string, accessTier blob.AccessTier) io.WriteCloser {
 	var file *os.File
 	var err error
 
-	if file, err = ioutil.TempFile(os.TempDir(), "backup"); nil != err {
+	if file, err = os.CreateTemp(os.TempDir(), "bart-*"); nil != err {
 		log.Panicf("Failed to create temp file: %v", err)
 	}
 
@@ -104,106 +90,40 @@ func (a *azureArchiveContext) getUploadWriter(blobKey string) io.WriteCloser {
 		file:                file,
 		path:                file.Name(),
 		blobKey:             blobKey,
+		accessTier:          accessTier,
 	}
 }
 
-func (a *azureArchiveContext) uploadBlobFromFile(blobKey string, file *os.File, len int64) {
-	u := a.container.NewBlockBlobURL(blobKey)
-
-	if len > maxUploadSize {
-		// The file length exceeds the maximum allowed upload size, so upload blocks that then get committed together.
-		a.uploadBlobBlocks(u, file, len)
-	} else {
-		// Upload the entire file with a single request.
-		a.uploadBlob(u, file, len)
+func (a *azureArchiveContext) uploadBlobFromFile(blobKey string, file *os.File, accessTier blob.AccessTier) {
+	options := azblob.UploadFileOptions{
+		AccessTier: &accessTier,
 	}
-}
-
-func (a *azureArchiveContext) uploadBlob(blob azblob.BlockBlobURL, reader io.ReadSeeker, len int64) {
-	u := a.getUploadPipeline(blob, len)
-
-	// Upload the file with a single request.
-	_, err := u.Upload(a.Context, reader, azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{})
-
+	_, err := a.client.UploadFile(a.Context, a.container, blobKey, file, &options)
 	if nil != err {
-		log.Panicf("Failed to upload blob: %v", err)
+		log.Fatalf("Failed to upload blob '%s': %v", blobKey, err)
 	}
-}
-
-func (a *azureArchiveContext) uploadBlobBlocks(blob azblob.BlockBlobURL, reader io.ReaderAt, len int64) {
-	blockIds := make([]string, 0)
-
-	for offset := int64(0); offset < len; offset += maxBlockSize {
-		blockLen := len - offset
-
-		if blockLen > maxBlockSize {
-			blockLen = maxBlockSize
-		}
-
-		blockID := a.uploadBlock(blob, reader, offset, blockLen)
-		blockIds = append(blockIds, blockID)
-	}
-
-	_, err := blob.CommitBlockList(a.Context, blockIds, azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{})
-
-	if nil != err {
-		log.Panicf("Failed to commit block blob list: %v", err)
-	}
-}
-
-func (a *azureArchiveContext) uploadBlock(blob azblob.BlockBlobURL, reader io.ReaderAt, offset, len int64) string {
-	u := a.getUploadPipeline(blob, len)
-	blockID := getRandomBlockID()
-	block := io.NewSectionReader(reader, offset, len)
-	_, err := u.StageBlock(a.Context, blockID, block, azblob.LeaseAccessConditions{})
-
-	if nil != err {
-		log.Panicf("Failed to upload block %s of blob %s: %v", blockID, blob.String(), err)
-	}
-
-	return blockID
-}
-
-func (a *azureArchiveContext) getUploadPipeline(blob azblob.BlockBlobURL, len int64) azblob.BlockBlobURL {
-	timeout := getRequestTimeout(len)
-	u := blob.WithPipeline(azblob.NewPipeline(a.credential, azblob.PipelineOptions{
-		Retry: azblob.RetryOptions{
-			TryTimeout: timeout,
-		},
-	}))
-
-	return u
 }
 
 func (a *azureArchiveContext) downloadBlob(blobKey string, failIfNotFound bool) io.ReadCloser {
-	u := a.container.NewBlockBlobURL(blobKey)
-	res, err := u.Download(a.Context, 0, 0, azblob.BlobAccessConditions{}, false)
+	res, err := a.client.DownloadStream(a.Context, a.container, blobKey, nil)
 
 	if nil != err {
-		switch terr := err.(type) {
-		case azblob.StorageError:
-			switch terr.ServiceCode() { // Compare serviceCode to various ServiceCodeXxx constants
-			case azblob.ServiceCodeBlobNotFound:
-				if failIfNotFound {
-					log.Panicf("The blob was not found: %v", err)
-				} else {
-					return nil
-				}
-
-			default:
-				log.Panicf("The blob could not be downloaded, service response: %v", terr)
+		if bloberror.HasCode(err, bloberror.BlobNotFound, bloberror.ResourceNotFound) {
+			if failIfNotFound {
+				log.Panicf("The blob was not found: %s.", blobKey)
+			} else {
+				return nil
 			}
-		default:
-			log.Panicf("The blob could not be downloaded: %v", err)
+		} else {
+			log.Panicf("The blob could not be downloaded; service response: %v", err)
 		}
 	}
 
-	return res.Body(azblob.RetryReaderOptions{})
+	return res.Body
 }
 
 func (a *azureArchiveContext) removeBlob(blobKey string) {
-	u := a.container.NewBlockBlobURL(blobKey)
-	_, err := u.Delete(a.Context, azblob.DeleteSnapshotsOptionInclude, azblob.BlobAccessConditions{})
+	_, err := a.client.DeleteBlob(a.Context, a.container, blobKey, nil)
 
 	if nil != err {
 		log.Panicf("Failed to remove archive blob: %v", err)
@@ -247,7 +167,7 @@ func (s *azureSettings) uploadIfDirty() {
 		return
 	}
 
-	w := s.azureArchiveContext.getUploadWriter(blobKeySettings)
+	w := s.azureArchiveContext.getUploadWriter(blobKeySettings, blob.AccessTierHot)
 	defer w.Close()
 
 	s.storeSettings(w)
@@ -290,7 +210,7 @@ func (a *azureArchive) Backup(ctx inspection.Context) {
 	fmt.Printf("AddOrUpdate  %s  ->  %s", ctx.RelPath(), archiveBlobKey)
 	fmt.Println()
 
-	w := a.getUploadWriter(archiveBlobKey)
+	w := a.getUploadWriter(archiveBlobKey, blob.AccessTierCool)
 	defer w.Close()
 
 	a.backup(ctx, w)
@@ -350,7 +270,7 @@ func (i *azureIndex) Load() {
 
 func (i *azureIndex) Store() {
 	if i.dirty {
-		w := i.azureArchiveContext.getUploadWriter(blobKeyIndex)
+		w := i.azureArchiveContext.getUploadWriter(blobKeyIndex, blob.AccessTierHot)
 		defer w.Close()
 
 		cryptoWriter := i.wrapWriter(w)
@@ -364,9 +284,10 @@ func (i *azureIndex) Store() {
 type uploadWriter struct {
 	*azureArchiveContext
 
-	file    *os.File
-	path    string
-	blobKey string
+	file       *os.File
+	path       string
+	blobKey    string
+	accessTier blob.AccessTier
 }
 
 func (u *uploadWriter) Write(data []byte) (int, error) {
@@ -377,35 +298,8 @@ func (u *uploadWriter) Close() error {
 	defer os.Remove(u.path)
 	defer u.file.Close()
 
-	// Get the length of the temp file.
-	len, err := u.file.Seek(0, io.SeekCurrent)
-
-	if nil != err {
-		log.Panicf("Failed to determine length of file: %v", err)
-	}
-
-	// Seek back to the start of the temp file to prepare for the upload.
-	u.file.Seek(0, io.SeekStart)
-
 	// Upload the blob to Azure.
-	u.azureArchiveContext.uploadBlobFromFile(u.blobKey, u.file, len)
+	u.azureArchiveContext.uploadBlobFromFile(u.blobKey, u.file, u.accessTier)
 
 	return nil
-}
-
-func getRequestTimeout(len int64) time.Duration {
-	// Calculate the timeout to use from the size (in MB). We allow about 60 seconds per MB plus an additional 60 seconds.
-	lenMb := int(len / mb)
-	timeout := time.Duration(60+(60*lenMb)) * time.Second
-
-	return timeout
-}
-
-func getRandomBlockID() string {
-	b := make([]byte, 12)
-	if _, err := rand.Read(b); nil != err {
-		log.Panicf("Failed to generate random block ID: %v", err)
-	}
-
-	return base64.StdEncoding.EncodeToString(b)
 }
