@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        backupTarget: ['azure', 'files']
+        include:
+          - os: linux
+            arch: '386'
+          - os: linux
+            arch: 'amd64'
+          - os: linux
+            arch: 'arm'
+          - os: linux
+            arch: 'arm64'
+          - os: windows
+            arch: '386'
+          - os: windows
+            arch: 'amd64'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: arduino/setup-protoc@v2
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version-file: 'go.mod'
+
+    - name: Install protoc-gen-go
+      run: |
+        go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+        echo "PATH=$GOPATH/bin" >> $GITHUB_ENV
+
+    - name: Generate
+      run: go generate -v ./...
+
+    - name: Build
+      run: |
+        case "${{ matrix.os }}" in
+            windows)
+                EXT='.exe' ;;
+            *)
+                EXT='' ;;
+        esac
+        
+        ARCHIVE_BASE_NAME="bart-${{ matrix.backupTarget }}-${{ matrix.os }}-${{ matrix.arch }}"
+        GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build \
+            -o _out/$ARCHIVE_BASE_NAME$EXT \
+            -tags '${{ matrix.backupTarget }} all'
+        
+        case "${{ matrix.os }}" in
+            windows)
+                zip -j _out/$ARCHIVE_BASE_NAME.zip _out/$ARCHIVE_BASE_NAME$EXT
+                echo "ARCHIVE_PATH=_out/$ARCHIVE_BASE_NAME.zip" >> $GITHUB_ENV
+                echo "ARCHIVE_MEDIA_TYPE=application/zip" >> $GITHUB_ENV
+                ;;
+            *)
+                tar -cvzf _out/$ARCHIVE_BASE_NAME.tar.gz -C _out $ARCHIVE_BASE_NAME$EXT
+                echo "ARCHIVE_PATH=_out/$ARCHIVE_BASE_NAME.tar.gz" >> $GITHUB_ENV
+                echo "ARCHIVE_MEDIA_TYPE=application/gzip" >> $GITHUB_ENV
+                ;;
+        esac
+
+    - name: Upload to release
+      uses: JasonEtco/upload-to-release@master
+      with:
+        args: $ARCHIVE_PATH $ARCHIVE_MEDIA_TYPE
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
