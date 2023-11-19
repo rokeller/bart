@@ -4,7 +4,6 @@ package archiving
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -200,6 +199,10 @@ func NewAzureArchive(azureContext AzureContext, localRoot, name, password string
 	}
 }
 
+func (a *azureArchive) GetBackupIndex() domain.BackupIndex {
+	return a.cryptoArchive.archiveBase.index.getIndex()
+}
+
 func (a *azureArchive) Backup(ctx inspection.Context) {
 	if !a.shouldAddOrUpdate(ctx) {
 		return
@@ -207,8 +210,7 @@ func (a *azureArchive) Backup(ctx inspection.Context) {
 
 	archiveBlobKey := a.getArchivedRelFilePath(ctx.RelPath())
 
-	fmt.Printf("AddOrUpdate  %s  ->  %s", ctx.RelPath(), archiveBlobKey)
-	fmt.Println()
+	log.Printf("AddOrUpdate  %s  ->  %s", ctx.RelPath(), archiveBlobKey)
 
 	w := a.getUploadWriter(archiveBlobKey, blob.AccessTierCool)
 	defer w.Close()

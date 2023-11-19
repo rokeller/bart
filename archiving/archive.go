@@ -1,11 +1,11 @@
 package archiving
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"os"
 	"path"
+	"sync"
 	"time"
 
 	"github.com/rokeller/bart/domain"
@@ -26,6 +26,8 @@ type Archive interface {
 	HandleMissing(handler MissingFileHandler)
 
 	Close()
+
+	GetBackupIndex() domain.BackupIndex
 }
 
 type archiveBase struct {
@@ -33,6 +35,7 @@ type archiveBase struct {
 
 	index        Index
 	missingFiles domain.BackupIndex
+	mutex        sync.Mutex
 }
 
 func (a *archiveBase) Close() {
@@ -41,12 +44,18 @@ func (a *archiveBase) Close() {
 
 func (a *archiveBase) handleMissing(impl Archive, handler MissingFileHandler) {
 	for relPath, meta := range a.missingFiles {
-		fmt.Printf("Missing local file '%v' ... ", relPath)
+		log.Printf("Missing local file '%v' ... ", relPath)
 		handler.HandleMissing(impl, domain.Entry{
 			RelPath:       relPath,
 			EntryMetadata: meta,
 		})
-		fmt.Println()
+	}
+
+	numMissing := len(a.missingFiles)
+	log.Printf("%d file(s) are missing locally.", numMissing)
+	if numMissing > 0 {
+		log.Println("Run with\n\t-m restore\nto restore them locally, or run with")
+		log.Println("\t-m delete\nto delete them in the backup archive.")
 	}
 }
 
@@ -54,6 +63,10 @@ func (a *archiveBase) init() *archiveBase {
 	a.index.Load()
 
 	a.missingFiles = make(domain.BackupIndex, 0)
+	a.mutex = sync.Mutex{}
+
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
 
 	for key, val := range a.index.getIndex() {
 		a.missingFiles[key] = val
@@ -70,10 +83,11 @@ func (a *archiveBase) getArchivedRelFilePath(relPath string) string {
 }
 
 func (a *archiveBase) shouldAddOrUpdate(ctx inspection.Context) bool {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
 	delete(a.missingFiles, ctx.RelPath())
 
 	return a.index.shouldAddOrUpdate(ctx)
-
 }
 
 func (a *archiveBase) backup(ctx inspection.Context, archiveWriter io.Writer) {
