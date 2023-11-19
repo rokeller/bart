@@ -21,6 +21,7 @@ func main() {
 	flag.Parse()
 
 	backupName := strings.TrimSpace(*name)
+	log.SetFlags(log.Ltime)
 
 	if "" == backupName {
 		log.Fatalf("The backup name must not be empty.")

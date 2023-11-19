@@ -4,7 +4,6 @@ package archiving
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -107,8 +106,7 @@ func (a *fsCryptoArchive) Backup(ctx inspection.Context) {
 
 	archiveFilePath := a.getArchivedFilePath(ctx.RelPath(), true)
 
-	fmt.Printf("AddOrUpdate  %s  ->  %s", ctx.RelPath(), archiveFilePath)
-	fmt.Println()
+	log.Printf("AddOrUpdate  %s  ->  %s", ctx.RelPath(), archiveFilePath)
 
 	outfile, err := os.Create(archiveFilePath)
 
