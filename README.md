@@ -14,26 +14,15 @@ too.
 * password based AES encryption for the archive index and archived files
 * concealing original file paths by hashing them
 
-**Disclaimer: Use at your own risk!**
-
-### Build
-
-to build `bart` you can take advantage of the `makefile`` in the repo:
-
-```bash
-make bart
-# or, to also create the x86 and x64 binaries for Windows
-make all
-```
-
-Alternatively, you can just use `go build` yourself. To build `bart` with
-support to backup to the file system, run
-
-```bash
-TAGS=files make clean bart
-```
+> **Disclaimer**: Use at your own risk!
 
 ## Usage
+
+> **Note**: When downloading packages from a release, the binaries contained
+> within are named `bart-<backupTarget>-<os>-<arch>` (and optionally with a file
+> extension `.exe` for Windows). You can safely rename these executables to
+> `bart` (or `bart.exe` on Windows) and call them with the usages outlined
+> below, or you can call them just like they're unpacked.
 
 ### Backup to Azure Blob Storage
 
