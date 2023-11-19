@@ -99,6 +99,10 @@ func NewFileArchive(archiveRoot, localRoot, name, password string) Archive {
 	}
 }
 
+func (a *fsCryptoArchive) GetBackupIndex() domain.BackupIndex {
+	return a.cryptoArchive.archiveBase.index.getIndex()
+}
+
 func (a *fsCryptoArchive) Backup(ctx inspection.Context) {
 	if !a.shouldAddOrUpdate(ctx) {
 		return
