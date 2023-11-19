@@ -50,7 +50,7 @@ func (v *archivingVisitor) Done() {
 }
 
 func (v *archivingVisitor) queueHandler(id int) {
-	log.Printf("[handler-%d] Starting.", id)
+	log.Printf("[Uploader-%d] Starting.", id)
 	numHandled := 0
 
 	for {
@@ -63,5 +63,5 @@ func (v *archivingVisitor) queueHandler(id int) {
 		}
 	}
 
-	log.Printf("[handler-%d] Finished. Handled %d", id, numHandled)
+	log.Printf("[Uploader-%d] Finished; handled %d file(s).", id, numHandled)
 }
