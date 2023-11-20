@@ -29,5 +29,8 @@ jobs:
     - name: Generate
       run: go generate -v ./...
 
-    - name: Build
-      run: go build -v ./...
+    - name: Build Azure
+      run: go build -o _out/bart-azure -tags "azure all"
+
+    - name: Build Files
+      run: go build -o _out/bart-files -tags "files all"
