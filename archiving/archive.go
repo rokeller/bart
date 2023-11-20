@@ -54,8 +54,11 @@ func (a *archiveBase) handleMissing(impl Archive, handler MissingFileHandler) {
 	numMissing := len(a.missingFiles)
 	log.Printf("%d file(s) are missing locally.", numMissing)
 	if numMissing > 0 {
-		log.Println("Run with\n\t-m restore\nto restore them locally, or run with")
-		log.Println("\t-m delete\nto delete them in the backup archive.")
+		log.Println("Run with")
+		log.Println("\t-m restore")
+		log.Println("to restore them locally, or run with")
+		log.Println("\t-m delete")
+		log.Println("to delete them in the backup archive.")
 	}
 }
 
