@@ -34,6 +34,8 @@ Usage of ./bart:
         A behavior for files missing locally: 'noop' to do nothing, 'restore' to restore them from the backup, 'delete' to delete them in the backup archive. (default "noop")
   -name string
         The name of the backup archive. (default "backup")
+  -p int
+        The degree of parallelism to use. (default <depending on available CPUs>)
   -path string
         The path to the directory to backup and/or restore. (default ".")
 ```
@@ -70,6 +72,8 @@ Usage of ./bart:
         A behavior for files missing locally: 'noop' to do nothing, 'restore' to restore them from the backup, 'delete' to delete them in the backup archive. (default "noop")
   -name string
         The name of the backup archive. (default "backup")
+  -p int
+        The degree of parallelism to use. (default <depending on available CPUs>)
   -path string
         The path to the directory to backup and/or restore. (default ".")
   -t string
