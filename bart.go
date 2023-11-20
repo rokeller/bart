@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/rokeller/bart/archiving"
@@ -14,9 +15,16 @@ import (
 )
 
 func main() {
+	numCPU := runtime.NumCPU()
+
 	name := flag.String("name", "backup", "The name of the backup archive.")
 	root := flag.String("path", ".", "The path to the directory to backup and/or restore.")
-	missingBehavior := flag.String("m", "noop", "A behavior for files missing locally: 'noop' to do nothing, 'restore' to restore them from the backup, 'delete' to delete them in the backup archive.")
+	degreeOfParallelism := flag.Int("p", 2*numCPU, "The degree of parallelism to use.")
+	missingBehavior := flag.String("m", "noop",
+		"A behavior for files missing locally: 'noop' to do nothing, 'restore' "+
+			"to restore them from the backup, 'delete' to delete them in the "+
+			"backup archive.")
+
 	updateFlags()
 	flag.Parse()
 
@@ -38,7 +46,8 @@ func main() {
 	finder := inspection.NewFileFinder(rootPath)
 
 	finder.Find(&archivingVisitor{
-		archive: archive,
+		archive:             archive,
+		degreeOfParallelism: *degreeOfParallelism,
 	})
 
 	var handler archiving.MissingFileHandler

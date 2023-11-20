@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"runtime"
 	"sync"
 	"time"
 
@@ -13,20 +12,21 @@ import (
 type archivingVisitor struct {
 	archive   archiving.Archive
 	startTime time.Time
-	queue     chan inspection.Context
-	waitGroup *sync.WaitGroup
+
+	degreeOfParallelism int
+	queue               chan inspection.Context
+	waitGroup           *sync.WaitGroup
 }
 
 func (v *archivingVisitor) Start() {
-	numCPU := runtime.NumCPU()
-	v.queue = make(chan inspection.Context, numCPU*4)
+	v.queue = make(chan inspection.Context, 2*v.degreeOfParallelism)
 	v.waitGroup = &sync.WaitGroup{}
 
-	for i := 0; i < numCPU; i++ {
+	for i := 0; i < v.degreeOfParallelism; i++ {
 		v.waitGroup.Add(1)
 		go func(id int) {
 			defer v.waitGroup.Done()
-			v.queueHandler(id)
+			v.uploadQueueHandler(id)
 		}(i)
 	}
 
@@ -49,7 +49,7 @@ func (v *archivingVisitor) Done() {
 	log.Printf("Inspection done in %v. Backup has %d files.", duration, len(index))
 }
 
-func (v *archivingVisitor) queueHandler(id int) {
+func (v *archivingVisitor) uploadQueueHandler(id int) {
 	log.Printf("[Uploader-%d] Starting.", id)
 	numHandled := 0
 
