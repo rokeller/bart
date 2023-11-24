@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -14,6 +15,13 @@ import (
 	"github.com/rokeller/bart/domain"
 	"github.com/rokeller/bart/inspection"
 )
+
+type commandContext struct {
+	archive             archiving.Archive
+	degreeOfParallelism int
+	rootDir             string
+	finished            chan bool
+}
 
 func main() {
 	numCPU := runtime.NumCPU()
@@ -46,25 +54,48 @@ func main() {
 
 	glog.V(2).Infof("missingBehavior: %v", *missingBehavior)
 
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Kill, os.Interrupt)
+
+	ctx := commandContext{
+		archive:             archive,
+		degreeOfParallelism: *degreeOfParallelism,
+		rootDir:             *root,
+		finished:            make(chan bool),
+	}
+
+	go ctx.run()
+
+	select {
+	case s := <-c:
+		glog.V(0).Info("Got signal:", s)
+	case <-ctx.finished:
+		break
+	}
+}
+
+func (c commandContext) run() {
 	// Visit local files and upload the ones missing or changed.
-	visitor := NewArchivingVisitor(archive, *degreeOfParallelism)
-	err := inspection.Discover(rootDir, visitor)
+	visitor := NewArchivingVisitor(c.archive, c.degreeOfParallelism)
+	err := inspection.Discover(c.rootDir, visitor)
 	if nil != err {
 		glog.Errorf("Discovery failed: %v", err)
 	}
 	visitor.Complete()
 
 	// Find files that are missing locally.
-	archive.FindLocallyMissing(func(entry domain.Entry) {
+	c.archive.FindLocallyMissing(func(entry domain.Entry) {
 		// The item is present in the backup, but not locally.
 		// TODO: decide based on command line actions
 		glog.V(1).Infof("File '%s' is in backup, but not local.", entry.RelPath)
-		if err := archive.Restore(entry); nil != err {
+		if err := c.archive.Restore(entry); nil != err {
 			glog.Errorf("failed to restore '%s': %v", entry.RelPath, err)
 		} else {
 			fmt.Println(entry.RelPath)
 		}
 	})
+
+	c.finished <- true
 }
 
 func readPassword() string {
