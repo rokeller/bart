@@ -1,4 +1,4 @@
-//go:build !files
+//go:build azure && !azurite
 
 package main
 
@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/rokeller/bart/archiving"
+	"github.com/rokeller/bart/providers/azureBlobs"
 )
 
 var (
@@ -24,16 +25,13 @@ func verifyFlags() {
 	}
 }
 
-func newArchive(backupName, rootPath, password string) archiving.Archive {
-	log.Printf("Backup '%s' as '%s' to Azure.", rootPath, backupName)
-
+func newStorageProvider(backupName string) archiving.StorageProvider {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
-		log.Fatalf("Credentials for Azure could not be found; error: %v", err)
+		log.Fatalf("Credentials for Azure could not be found: %v", err)
 	}
 
-	azCtx := archiving.NewAzureContextFromTokenCredential(*serviceURL, cred)
-	archive := archiving.NewAzureArchive(azCtx, rootPath, backupName, password)
+	provider := azureBlobs.NewAzureStorageProvider(*serviceURL, backupName, cred)
 
-	return archive
+	return provider
 }
