@@ -1,9 +1,9 @@
 package archiving
 
 import (
-	"log"
 	"os"
 
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/domain"
 )
 
@@ -16,7 +16,7 @@ type backupFile struct {
 func (a Archive) newBackupFile(entry domain.Entry) (*backupFile, error) {
 	tempFile, err := os.CreateTemp(os.TempDir(), "bart-*")
 	if nil != err {
-		log.Printf("Failed to create temp file: %v", err)
+		glog.Errorf("Failed to create temp file: %v", err)
 		return nil, err
 	}
 

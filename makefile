@@ -25,12 +25,12 @@ tags:
 .PHONY: run-test-azurite
 run-test-azurite:
 	go build -tags "azurite all"
-	./bart -path _out/ -name test-bart
+	./bart -path _out/ -name test-bart -logtostderr=true -v=2
 
 .PHONY: run-photo-azurite
 run-test-files:
 	go build -tags "files all"
-	./bart -path _out/ -name test-bart
+	./bart -path _out/ -name test-bart -logtostderr=true -v=2
 
 linux: bart-linux-386 bart-linux-amd64 bart-linux-arm bart-linux-arm64
 windows: bart-windows-386.exe bart-windows-amd64.exe

@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"io"
-	"log"
 
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/domain"
 	"google.golang.org/protobuf/proto"
 )
@@ -20,7 +20,7 @@ func NewSettings() Settings {
 	salt := make([]byte, aes.BlockSize)
 
 	if _, err := rand.Read(salt); nil != err {
-		log.Fatalf("Failed to generate random salt: %v", err)
+		glog.Fatalf("Failed to generate random salt: %v", err)
 	}
 
 	return Settings{
@@ -47,7 +47,8 @@ func NewSettingsFromReader(r io.ReadCloser) (Settings, error) {
 	settings := &domain.Settings{}
 
 	if err := proto.Unmarshal(data, settings); nil != err {
-		log.Panicf("Failed to unmarshal settings: %v", err)
+		glog.Errorf("Failed to unmarshal settings: %v", err)
+		return Settings{}, err
 	}
 
 	return Settings{
@@ -66,7 +67,7 @@ func (s Settings) Write(w io.Writer) error {
 
 	data, err := proto.Marshal(settings)
 	if nil != err {
-		log.Printf("Failed to marshal settings: %v", err)
+		glog.Errorf("Failed to marshal settings: %v", err)
 		return err
 	}
 
@@ -74,12 +75,12 @@ func (s Settings) Write(w io.Writer) error {
 	binary.LittleEndian.PutUint32(settingsSize, uint32(len(data)))
 
 	if _, err := w.Write(settingsSize); nil != err {
-		log.Printf("Failed to write settings size: %v", err)
+		glog.Errorf("Failed to write settings size: %v", err)
 		return err
 	}
 
 	if _, err := w.Write(data); nil != err {
-		log.Printf("Failed to write settings data: %v", err)
+		glog.Errorf("Failed to write settings data: %v", err)
 		return err
 	}
 

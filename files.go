@@ -4,11 +4,11 @@ package main
 
 import (
 	"flag"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
 
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/archiving"
 	"github.com/rokeller/bart/providers/files"
 )
@@ -24,7 +24,7 @@ func updateFlags() {
 
 func verifyFlags() {
 	archiveRootPath, _ = filepath.Abs(os.ExpandEnv(*targetRoot))
-	log.Printf("Backup to '%s'.", archiveRootPath)
+	glog.Infof("Backup to '%s'.", archiveRootPath)
 }
 
 func newStorageProvider(backupName string) archiving.StorageProvider {

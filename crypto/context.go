@@ -5,9 +5,9 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"io"
-	"log"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/settings"
 	"golang.org/x/crypto/scrypt"
 )
@@ -30,7 +30,7 @@ func (c AesOfbContext) Decrypt(r io.Reader) (io.Reader, error) {
 	iv := make([]byte, aes.BlockSize)
 
 	if _, err := io.ReadFull(r, iv); nil != err {
-		log.Panicf("Failed to read IV from file: %v", err)
+		glog.Errorf("Failed to read IV from file: %v", err)
 		return nil, err
 	}
 
@@ -38,7 +38,7 @@ func (c AesOfbContext) Decrypt(r io.Reader) (io.Reader, error) {
 	// then copy the archived file.
 	blockCipher, err := aes.NewCipher(c.key)
 	if nil != err {
-		log.Panicf("Failed to create AES block cipher: %v", err)
+		glog.Errorf("Failed to create AES block cipher: %v", err)
 		return nil, err
 	}
 
@@ -57,12 +57,12 @@ func (c AesOfbContext) Encrypt(w io.Writer) (io.WriteCloser, error) {
 	// Get a new random IV and write it to the writer unencrypted.
 	iv, err := getRandomIV()
 	if nil != err {
-		log.Printf("Failed to generate IV: %v", err)
+		glog.Errorf("Failed to generate IV: %v", err)
 		return nil, err
 	}
 
 	if _, err := w.Write(iv); nil != err {
-		log.Printf("Failed to write IV: %v", err)
+		glog.Errorf("Failed to write IV: %v", err)
 		return nil, err
 	}
 
@@ -70,7 +70,7 @@ func (c AesOfbContext) Encrypt(w io.Writer) (io.WriteCloser, error) {
 	// then copy the local input file.
 	blockCipher, err := aes.NewCipher(c.key)
 	if nil != err {
-		log.Printf("Failed to create AES block cipher: %v", err)
+		glog.Errorf("Failed to create AES block cipher: %v", err)
 		return nil, err
 	}
 
@@ -88,11 +88,11 @@ func deriveKey(password string, s settings.Settings) []byte {
 	key, err := scrypt.Key([]byte(password), s.Salt(), 1<<18, 8, 1, 32)
 	endTime := time.Now()
 	duration := endTime.Sub(startTime)
-	log.Printf("Key derivation took %v", duration)
+	glog.Infof("Key derivation took %v", duration)
 
 	if nil != err {
 		// TODO: return error
-		log.Fatalf("Failed to derive key: %v", err)
+		glog.Fatalf("Failed to derive key: %v", err)
 	}
 
 	return key

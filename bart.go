@@ -3,12 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 
+	"github.com/golang/glog"
 	"github.com/howeyc/gopass"
 	"github.com/rokeller/bart/archiving"
 	"github.com/rokeller/bart/domain"
@@ -30,10 +30,9 @@ func main() {
 	flag.Parse()
 
 	backupName := strings.TrimSpace(*name)
-	log.SetFlags(log.Ltime)
 
 	if "" == backupName {
-		log.Fatalf("The backup name must not be empty.")
+		glog.Fatalf("The backup name must not be empty.")
 	} else {
 		verifyFlags()
 	}
@@ -45,13 +44,13 @@ func main() {
 	archive := archiving.NewArchive(password, localContext, storageProvider)
 	defer archive.Close()
 
-	log.Printf("missingBehavior: %v", *missingBehavior)
+	glog.V(2).Infof("missingBehavior: %v", *missingBehavior)
 
 	// Visit local files and upload the ones missing or changed.
 	visitor := NewArchivingVisitor(archive, *degreeOfParallelism)
 	err := inspection.Discover(rootDir, visitor)
 	if nil != err {
-		log.Printf("Discovery failed: %v", err)
+		glog.Errorf("Discovery failed: %v", err)
 	}
 	visitor.Complete()
 
@@ -59,9 +58,9 @@ func main() {
 	archive.FindLocallyMissing(func(entry domain.Entry) {
 		// The item is present in the backup, but not locally.
 		// TODO: decide based on command line actions
-		log.Printf("File '%s' is in backup, but not local.", entry.RelPath)
+		glog.V(1).Infof("File '%s' is in backup, but not local.", entry.RelPath)
 		if err := archive.Restore(entry); nil != err {
-			log.Printf("failed to restore '%s': %v", entry.RelPath, err)
+			glog.Errorf("failed to restore '%s': %v", entry.RelPath, err)
 		} else {
 			fmt.Println(entry.RelPath)
 		}
@@ -72,7 +71,7 @@ func readPassword() string {
 	data, err := gopass.GetPasswdPrompt("Please enter your password: ", true, os.Stdin, os.Stderr)
 
 	if nil != err {
-		log.Panicf("Failed to read password: %v", err)
+		glog.Fatalf("Failed to read password: %v", err)
 	}
 
 	return string(data)

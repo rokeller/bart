@@ -1,9 +1,9 @@
 package archiving
 
 import (
-	"log"
 	"sync"
 
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/domain"
 )
 
@@ -68,13 +68,13 @@ func (i *Index) Close() error {
 	i.closed = true
 
 	if i.Dirty() {
-		log.Println("The archive index has changed and needs to be uploaded.")
+		glog.Info("The archive index has changed and needs to be uploaded.")
 		if err := i.writeIndex(); nil != err {
-			log.Printf("The archive index could not be uploaded: %v", err)
+			glog.Errorf("The archive index could not be uploaded: %v", err)
 			return err
 		}
 	} else {
-		log.Println("The archive index has not changed.")
+		glog.Info("The archive index has not changed.")
 	}
 
 	return nil
@@ -87,17 +87,12 @@ func (i *Index) load() {
 		// It's not an error if the index does not exist yet.
 		return
 	} else {
-		log.Fatalf("Failed to load archive index: %v", err)
+		glog.Fatalf("Failed to load archive index: %v", err)
 	}
 }
 
 func (i *Index) walkIndex(fn func(domain.Entry, EntryFlags) error) error {
-	if !i.closed {
-		cSync := make(chan bool, 1)
-		i.messages <- syncMessage(cSync)
-		// Wait for the message handler to be caught up.
-		<-cSync
-	}
+	i.sync()
 
 	// TODO: we probably need the message handler on the index to be stopped
 	//       while we walk the entries map.

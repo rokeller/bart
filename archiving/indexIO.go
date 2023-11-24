@@ -4,8 +4,8 @@ import (
 	"compress/gzip"
 	"encoding/binary"
 	"io"
-	"log"
 
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/domain"
 	"google.golang.org/protobuf/proto"
 )
@@ -13,7 +13,7 @@ import (
 func (i *Index) readIndex() error {
 	r, err := i.archive.storageProvider.ReadIndex()
 	if nil != err {
-		log.Printf("error reading index from provider: %v", err)
+		glog.Errorf("error reading index from provider: %v", err)
 		return err
 	}
 	defer r.Close()
@@ -21,14 +21,14 @@ func (i *Index) readIndex() error {
 	// Decrypt the stream holding the index ...
 	cr, err := i.archive.cryptoContext.Decrypt(r)
 	if nil != err {
-		log.Printf("error decrypting index from provider: %v", err)
+		glog.Errorf("error decrypting index from provider: %v", err)
 		return err
 	}
 
 	// ... and decompress it.
 	gr, err := gzip.NewReader(cr)
 	if nil != err {
-		log.Printf("error decompressing index from provider: %v", err)
+		glog.Errorf("error decompressing index from provider: %v", err)
 		return err
 	}
 	defer gr.Close()
@@ -77,7 +77,7 @@ func (i *Index) writeIndex() error {
 		return writeIndexEntry(e, gw)
 	})
 
-	log.Printf("Archive index with %d file(s) uploaded.", numEntries)
+	glog.Infof("Archive index with %d file(s) uploaded.", numEntries)
 
 	return err
 }

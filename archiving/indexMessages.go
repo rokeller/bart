@@ -1,9 +1,9 @@
 package archiving
 
 import (
-	"log"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/domain"
 )
 
@@ -31,6 +31,12 @@ type delMessage struct {
 type syncMessage = chan<- bool
 
 func (i Index) setEntry(entry domain.Entry, flags EntryFlags, markDirty bool) {
+	if i.closed {
+		glog.Warningf("Not sending 'set' message for '%s', because message handling has stopped.",
+			entry.RelPath)
+		return
+	}
+
 	i.messages <- setMessage{
 		keyedMessage: keyedMessage{relPath: entry.RelPath},
 		indexEntry: indexEntry{
@@ -42,6 +48,12 @@ func (i Index) setEntry(entry domain.Entry, flags EntryFlags, markDirty bool) {
 }
 
 func (i Index) getEntry(relPath string) *indexEntry {
+	if i.closed {
+		glog.Warningf("Not sending 'get' message for '%s', because message handling has stopped.",
+			relPath)
+		return nil
+	}
+
 	resultChannel := make(chan *indexEntry)
 
 	i.messages <- getMessage{
@@ -53,9 +65,26 @@ func (i Index) getEntry(relPath string) *indexEntry {
 }
 
 func (i Index) deleteEntry(relPath string) {
+	if i.closed {
+		glog.Warningf("Not sending 'delete' message for '%s', because message handling has stopped.",
+			relPath)
+		return
+	}
+
 	i.messages <- delMessage{
 		keyedMessage: keyedMessage{relPath: relPath},
 	}
+}
+
+func (i Index) sync() {
+	if i.closed {
+		return
+	}
+
+	cSync := make(chan bool, 1)
+	i.messages <- syncMessage(cSync)
+	// Wait for the message handler to be caught up.
+	<-cSync
 }
 
 func (i *Index) handleMessages() {
@@ -71,12 +100,13 @@ func (i *Index) handleMessages() {
 			i.handleMessage(msg)
 
 		case <-maintenanceTicker.C:
-			log.Printf("Time for maintenance: upload current index to backup destination")
+			// TODO:
+			glog.Warning("Time for maintenance: upload current index to backup destination")
 		}
 	}
 
 terminate:
-	log.Println("Index message handling terminated.")
+	glog.V(1).Info("Index message handling terminated.")
 	i.wgClose.Done()
 }
 
@@ -105,6 +135,6 @@ func (i *Index) handleMessage(msg message) {
 		close(m)
 
 	default:
-		log.Printf("Unsupported message type: %v", m)
+		glog.Warningf("Unsupported message type: %v", m)
 	}
 }

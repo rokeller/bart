@@ -4,9 +4,9 @@ package main
 
 import (
 	"flag"
-	"log"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/archiving"
 	"github.com/rokeller/bart/providers/azureBlobs"
 )
@@ -21,14 +21,14 @@ func updateFlags() {
 
 func verifyFlags() {
 	if "" == *serviceURL {
-		log.Fatalf("The Azure blob service endpoint URL must not be empty.")
+		glog.Fatal("The Azure blob service endpoint URL must not be empty.")
 	}
 }
 
 func newStorageProvider(backupName string) archiving.StorageProvider {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
-		log.Fatalf("Credentials for Azure could not be found: %v", err)
+		glog.Fatalf("Credentials for Azure could not be found: %v", err)
 	}
 
 	provider := azureBlobs.NewAzureStorageProvider(*serviceURL, backupName, cred)

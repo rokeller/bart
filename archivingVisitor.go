@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"io/fs"
-	"log"
 	"sync"
 
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/archiving"
 	"github.com/rokeller/bart/domain"
 )
@@ -46,7 +46,7 @@ func (v archivingVisitor) VisitDir(path string, d fs.DirEntry) {
 func (v archivingVisitor) VisitFile(path string, f fs.DirEntry) {
 	info, err := f.Info()
 	if nil != err {
-		log.Printf("Couldn't get details of file '%s': %v", path, err)
+		glog.Errorf("Couldn't get details of file '%s': %v", path, err)
 		return
 	}
 
@@ -62,26 +62,6 @@ func (v archivingVisitor) VisitFile(path string, f fs.DirEntry) {
 	}
 }
 
-// import (
-// 	"log"
-// 	"sync"
-// 	"time"
-
-// 	"github.com/rokeller/bart/archiving"
-// 	"github.com/rokeller/bart/inspection"
-// )
-
-// func (v *archivingVisitor) Done() {
-// 	close(v.queue)
-// 	v.waitGroup.Wait()
-// 	endTime := time.Now()
-// 	duration := endTime.Sub(v.startTime)
-
-// 	stats := v.archive.GetIndexStats()
-// 	log.Printf("Inspection done in %v. Backup has %d files.",
-// 		duration, stats.NumFiles)
-// }
-
 func (v archivingVisitor) handleUploadQueue(id int) {
 	numSuccessful, numFailed := 0, 0
 
@@ -91,15 +71,15 @@ func (v archivingVisitor) handleUploadQueue(id int) {
 			break
 		}
 
-		log.Printf("[Uploader-%d] Backup file '%s' ...", id, entry.RelPath)
+		glog.V(1).Info("[Uploader-%d] Backup file '%s' ...", id, entry.RelPath)
 		if err := v.a.Backup(entry); nil != err {
 			numFailed++
-			log.Printf("[Uploader-%d] Backup of file '%s' failed: %v", id, entry.RelPath, err)
+			glog.Errorf("[Uploader-%d] Backup of file '%s' failed: %v", id, entry.RelPath, err)
 		}
 		numSuccessful++
 		fmt.Println(entry.RelPath)
 	}
 
-	log.Printf("[Uploader-%d] Finished. Successfully backed up %d file(s), failed to backup %d file(s).",
+	glog.Infof("[Uploader-%d] Finished. Successfully backed up %d file(s), failed to backup %d file(s).",
 		id, numSuccessful, numFailed)
 }

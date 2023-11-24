@@ -5,7 +5,6 @@ package azureBlobs
 import (
 	"context"
 	"io"
-	"log"
 	"os"
 	"path"
 	"sync"
@@ -15,6 +14,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/archiving"
 	"github.com/rokeller/bart/domain"
 )
@@ -42,7 +42,7 @@ func NewAzureStorageProvider(
 ) archiving.StorageProvider {
 	blobClient, err := azblob.NewClient(serviceURL, cred, nil)
 	if nil != err {
-		log.Fatalf("Failed to create Azure Blob client: %v", err)
+		glog.Fatalf("Failed to create Azure Blob client: %v", err)
 	}
 
 	return newAzureStorageProvider(blobClient, containerName)
@@ -57,7 +57,7 @@ func newAzureStorageProvider(blobClient *azblob.Client, containerName string) ar
 	_, err := containerClient.Create(ctx, nil)
 	if nil != err {
 		if !bloberror.HasCode(err, bloberror.ContainerAlreadyExists) {
-			log.Fatalf("Failed to create target container: %v", err)
+			glog.Fatalf("Failed to create target container: %v", err)
 		}
 	}
 
@@ -169,9 +169,9 @@ func (p azureStorageProvider) newBlobWriter(blobName string) (io.WriteCloser, er
 		_, err := blobClient.UploadStream(context.Background(), r, nil)
 
 		if nil != err {
-			log.Printf("Failed to upload '%s': %v", blobName, err)
+			glog.Errorf("Failed to upload '%s': %v", blobName, err)
 		} else {
-			log.Printf("Finished uploading '%s'.", blobName)
+			glog.Infof("Finished uploading '%s'.", blobName)
 		}
 	}()
 

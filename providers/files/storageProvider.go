@@ -4,10 +4,10 @@ package files
 
 import (
 	"io"
-	"log"
 	"os"
 	"path"
 
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/archiving"
 	"github.com/rokeller/bart/domain"
 )
@@ -23,7 +23,7 @@ type fileStorageProvider struct {
 
 func NewFileStorageProvider(targetRoot string) archiving.StorageProvider {
 	if err := os.MkdirAll(targetRoot, 0700); nil != err {
-		log.Fatalf("Failed to create archive target directory: %v", err)
+		glog.Fatalf("Failed to create archive target directory: %v", err)
 	}
 
 	return fileStorageProvider{targetRoot: targetRoot}

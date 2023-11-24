@@ -2,11 +2,11 @@ package archiving
 
 import (
 	"io"
-	"log"
 	"os"
 	"path"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/crypto"
 	"github.com/rokeller/bart/domain"
 	"github.com/rokeller/bart/settings"
@@ -30,7 +30,7 @@ func NewArchive(password string, localContext LocalContext, storageProvider Stor
 
 	a.cryptoContext = crypto.NewAesOfbContext(password, a.settings)
 	a.index = newIndex(&a)
-	log.Printf("The archive index currently has %d file(s).", a.index.Count())
+	glog.Infof("The archive index currently has %d file(s).", a.index.Count())
 
 	return a
 }
@@ -47,28 +47,28 @@ func (a Archive) Backup(entry domain.Entry) error {
 	// Open the local file ...
 	src, err := os.Open(absPath)
 	if nil != err {
-		log.Printf("Failed to open local file reader: %v", err)
+		glog.Errorf("Failed to open local file reader: %v", err)
 		return err
 	}
 	defer src.Close()
 
 	w, err := a.newBackupFile(entry)
 	if nil != err {
-		log.Printf("Failed to create temporary file: %v", err)
+		glog.Errorf("Failed to create temporary file: %v", err)
 		return err
 	}
 	defer w.Close()
 
 	cw, err := a.cryptoContext.Encrypt(w)
 	if nil != err {
-		log.Printf("Failed to encrypt backup writer: %v", err)
+		glog.Errorf("Failed to encrypt backup writer: %v", err)
 		return err
 	}
 	defer cw.Close()
 
 	// ... and copy it to the archive writer.
 	if _, err = io.Copy(cw, src); err != nil {
-		log.Printf("Failed to write to backup: %v", err)
+		glog.Errorf("Failed to write to backup: %v", err)
 		return err
 	}
 
@@ -138,23 +138,3 @@ func (a Archive) FindLocallyMissing(fn func(entry domain.Entry)) {
 func (a Archive) Close() error {
 	return a.index.Close()
 }
-
-// func (a *ArchiveBase) handleMissing(impl Archive, handler MissingFileHandler) {
-// 	for relPath, meta := range a.missingFiles {
-// 		log.Printf("Missing local file '%v' ... ", relPath)
-// 		handler.HandleMissing(impl, domain.Entry{
-// 			RelPath:       relPath,
-// 			EntryMetadata: meta,
-// 		})
-// 	}
-
-// 	numMissing := len(a.missingFiles)
-// 	log.Printf("%d file(s) are missing locally.", numMissing)
-// 	if numMissing > 0 {
-// 		log.Println("Run with")
-// 		log.Println("\t-m restore")
-// 		log.Println("to restore them locally, or run with")
-// 		log.Println("\t-m delete")
-// 		log.Println("to delete them in the backup archive.")
-// 	}
-// }
