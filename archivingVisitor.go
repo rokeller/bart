@@ -71,13 +71,14 @@ func (v archivingVisitor) handleUploadQueue(id int) {
 			break
 		}
 
-		glog.V(1).Info("[Uploader-%d] Backup file '%s' ...", id, entry.RelPath)
+		glog.V(1).Infof("[Uploader-%d] Backup file '%s' ...", id, entry.RelPath)
 		if err := v.a.Backup(entry); nil != err {
 			numFailed++
 			glog.Errorf("[Uploader-%d] Backup of file '%s' failed: %v", id, entry.RelPath, err)
+		} else {
+			numSuccessful++
+			fmt.Println(entry.RelPath)
 		}
-		numSuccessful++
-		fmt.Println(entry.RelPath)
 	}
 
 	glog.Infof("[Uploader-%d] Finished. Successfully backed up %d file(s), failed to backup %d file(s).",
