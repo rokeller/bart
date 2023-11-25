@@ -17,6 +17,7 @@ func (c *cmdClean) Finished() <-chan bool {
 func (c *cmdClean) Run() {
 	defer c.signalFinished()
 
+	// TODO: implement clean with whatif
 	panic("unimplemented")
 }
 

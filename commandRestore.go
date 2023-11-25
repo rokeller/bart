@@ -87,6 +87,12 @@ func (c *cmdRestore) handleRestoreQueue(id int) {
 		glog.V(1).Infof("[Restorer-%d] Restoring file '%s' ...",
 			id, entry.RelPath)
 
+		if c.args.whatIf {
+			numSuccessful++
+			fmt.Println(entry.RelPath)
+			continue
+		}
+
 		if err := c.archive.Restore(entry); nil != err {
 			numFailed++
 			glog.Errorf("[Restorer-%d] Restore of file '%s' failed: %v",
