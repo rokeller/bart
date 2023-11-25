@@ -28,6 +28,10 @@ func (i *Index) readIndex() error {
 	// ... and decompress it.
 	gr, err := gzip.NewReader(cr)
 	if nil != err {
+		if err == gzip.ErrHeader {
+			return IndexDecryptionFailed
+		}
+
 		glog.Errorf("error decompressing index from provider: %v", err)
 		return err
 	}
