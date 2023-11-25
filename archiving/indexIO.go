@@ -57,6 +57,9 @@ func (i *Index) readIndex() error {
 	return nil
 }
 
+// writeIndex writes the index. The caller *must* make sure that this is only
+// called when message handling hasn't started, has finished, or is "paused"
+// e.g. with the help of a `syncMessage`.
 func (i *Index) writeIndex() error {
 	w, err := i.archive.storageProvider.NewIndexWriter()
 	if nil != err {
@@ -76,12 +79,14 @@ func (i *Index) writeIndex() error {
 	defer gw.Close()
 
 	numEntries := 0
-	err = i.walkIndex(func(e domain.Entry, ef EntryFlags) error {
+	// We require the caller to take care of sync.
+	err = i.walkIndexWithSync(false, func(e domain.Entry, ef EntryFlags) error {
 		numEntries++
 		return writeIndexEntry(e, gw)
 	})
 
 	glog.Infof("Archive index with %d file(s) uploaded.", numEntries)
+	i.dirty = false
 
 	return err
 }

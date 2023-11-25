@@ -28,7 +28,10 @@ type delMessage struct {
 	keyedMessage
 }
 
-type syncMessage = chan<- bool
+type syncMessage struct {
+	start chan<- bool // This channel is used to indicate that the synced logic can start
+	done  <-chan bool // this channel is used to indicate that the synced logic is done
+}
 
 func (i Index) setEntry(entry domain.Entry, flags EntryFlags, markDirty bool) {
 	if i.closed {
@@ -54,6 +57,8 @@ func (i Index) getEntry(relPath string) *indexEntry {
 		return nil
 	}
 
+	// Use an unbuffered channel: when the message handler has the response,
+	// we need to be ready to accept it.
 	resultChannel := make(chan *indexEntry)
 
 	i.messages <- getMessage{
@@ -76,19 +81,32 @@ func (i Index) deleteEntry(relPath string) {
 	}
 }
 
-func (i Index) sync() {
-	if i.closed {
-		return
+func (i Index) sync(fn func()) {
+	done := make(chan bool, 1)
+	// Make sure the done signal always reaches the handler.
+	defer func() {
+		// Signal the message handler (if it's still running), that we're done.
+		done <- true
+	}()
+
+	if !i.closed {
+		start := make(chan bool, 1)
+		sync := syncMessage{
+			start: start,
+			done:  done,
+		}
+
+		i.messages <- sync
+		// Wait for the message handler to tell us that we can start
+		<-start
 	}
 
-	cSync := make(chan bool, 1)
-	i.messages <- syncMessage(cSync)
-	// Wait for the message handler to be caught up.
-	<-cSync
+	fn()
 }
 
 func (i *Index) handleMessages() {
-	maintenanceTicker := time.NewTicker(5 * time.Second)
+	// TODO: better ticker frequency -- should get from command line params
+	maintenanceTicker := time.NewTicker(30 * time.Second)
 	defer maintenanceTicker.Stop()
 
 	for {
@@ -100,8 +118,15 @@ func (i *Index) handleMessages() {
 			i.handleMessage(msg)
 
 		case <-maintenanceTicker.C:
-			// TODO:
-			glog.Warning("Time for maintenance: upload current index to backup destination")
+			glog.V(1).Info("MaintenaceTicker fired. Check for changes in index.")
+			if i.dirty {
+				glog.Info("The index has changed, upload current index checkpoint to backup destination.")
+				// Calling writeIndex here is safe because message handling is
+				// "paused" to handle the maintenance ticker.
+				if err := i.writeIndex(); nil != err {
+					glog.Errorf("The archive index could not be uploaded: %v", err)
+				}
+			}
 		}
 	}
 
@@ -131,8 +156,11 @@ func (i *Index) handleMessage(msg message) {
 		delete(i.entries, m.relPath)
 
 	case syncMessage:
-		m <- true
-		close(m)
+		// Signal the sender that its logic can start
+		m.start <- true
+		// Wait for the sender to have its logic finished.
+		<-m.done
+		close(m.start)
 
 	default:
 		glog.Warningf("Unsupported message type: %v", m)

@@ -24,7 +24,7 @@ type Index struct {
 	archive *Archive
 
 	// entries tracks entries in the index; must only accessed directly by
-	// handleMessage or during initialization.
+	// handleMessages, handleMessage or during initialization.
 	entries map[string]indexEntry
 
 	messages chan message
@@ -53,9 +53,12 @@ func newIndex(a *Archive) *Index {
 }
 
 func (i *Index) Count() int {
-	// TODO: we might need the message handler on the index to be stopped
-	//       while we count the entries
-	return len(i.entries)
+	var count int
+	i.sync(func() {
+		count = len(i.entries)
+	})
+
+	return count
 }
 
 func (i *Index) Dirty() bool {
@@ -69,6 +72,8 @@ func (i *Index) Close() error {
 
 	if i.Dirty() {
 		glog.Info("The archive index has changed and needs to be uploaded.")
+		// Calling writeIndex here is safe because message handler must have
+		// been stopped at the beginning of the method.
 		if err := i.writeIndex(); nil != err {
 			glog.Errorf("The archive index could not be uploaded: %v", err)
 			return err
@@ -94,22 +99,36 @@ func (i *Index) load() {
 }
 
 func (i *Index) walkIndex(fn func(domain.Entry, EntryFlags) error) error {
-	i.sync()
+	// Always walk with message handler synchronization.
+	return i.walkIndexWithSync(true, fn)
+}
 
-	// TODO: we probably need the message handler on the index to be stopped
-	//       while we walk the entries map.
-	for key, value := range i.entries {
-		entry := domain.Entry{
-			RelPath:       key,
-			EntryMetadata: value.EntryMetadata,
-		}
+// walkIndexWithSync walks through the index. It is the caller's responsibility
+// to use a proper value for `useSync` to indicate whether the walk must be
+// synced with the message handler.
+func (i *Index) walkIndexWithSync(useSync bool, fn func(domain.Entry, EntryFlags) error) error {
+	var err error
+	err = nil
+	walk := func() {
+		for key, value := range i.entries {
+			entry := domain.Entry{
+				RelPath:       key,
+				EntryMetadata: value.EntryMetadata,
+			}
 
-		if err := fn(entry, value.EntryFlags); nil != err {
-			return err
+			if err = fn(entry, value.EntryFlags); nil != err {
+				return
+			}
 		}
 	}
 
-	return nil
+	if useSync {
+		i.sync(walk)
+	} else {
+		walk()
+	}
+
+	return err
 }
 
 func (i *Index) needsBackup(entry domain.Entry) bool {
