@@ -12,7 +12,7 @@ type cmdBackup struct {
 }
 
 // C implements Command.
-func (c *cmdBackup) C() <-chan bool {
+func (c *cmdBackup) Finished() <-chan bool {
 	return c.finished
 }
 

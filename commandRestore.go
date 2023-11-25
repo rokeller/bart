@@ -20,7 +20,7 @@ type cmdRestore struct {
 }
 
 // C implements Command.
-func (c *cmdRestore) C() <-chan bool {
+func (c *cmdRestore) Finished() <-chan bool {
 	return c.finished
 }
 

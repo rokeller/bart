@@ -26,7 +26,7 @@ type commonArguments struct {
 type Command interface {
 	Run()
 	Stop()
-	C() <-chan bool
+	Finished() <-chan bool
 }
 
 type commandFactory func([]string) Command

@@ -9,7 +9,7 @@ type cmdClean struct {
 }
 
 // C implements Command.
-func (c *cmdClean) C() <-chan bool {
+func (c *cmdClean) Finished() <-chan bool {
 	return c.finished
 }
 
