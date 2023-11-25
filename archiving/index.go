@@ -83,11 +83,13 @@ func (i *Index) Close() error {
 func (i *Index) load() {
 	if err := i.readIndex(); nil == err {
 		return
-	} else if _, ok := err.(IndexNotFound); ok {
+	} else if err == IndexNotFound {
 		// It's not an error if the index does not exist yet.
 		return
+	} else if err == IndexDecryptionFailed {
+		glog.Exit("Index decryption failed. Did you provide the correct password?")
 	} else {
-		glog.Fatalf("Failed to load archive index: %v", err)
+		glog.Exit("Failed to load archive index: %v", err)
 	}
 }
 

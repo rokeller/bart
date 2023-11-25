@@ -8,25 +8,25 @@ import (
 func loadSettings(p StorageProvider) settings.Settings {
 	r, err := p.ReadSettings()
 	if nil != err {
-		if _, ok := err.(SettingsNotFound); ok {
+		if err == SettingsNotFound {
 			glog.Info("Settings not found, creating new settings.")
 			settings := settings.NewSettings()
 
 			err = storeSettings(p, settings)
 			if nil != err {
-				glog.Fatalf("Settings could not be written to backup destination: %v", err)
+				glog.Exitf("Settings could not be written to backup destination: %v", err)
 			}
 
 			return settings
 		}
 
-		glog.Fatalf("Failed to load archive settings: %v", err)
+		glog.Exitf("Failed to load archive settings: %v", err)
 	}
 	defer r.Close()
 
 	settings, err := settings.NewSettingsFromReader(r)
 	if nil != err {
-		glog.Fatalf("Failed to read settings: %v", err)
+		glog.Exitf("Failed to read settings: %v", err)
 	}
 
 	return settings

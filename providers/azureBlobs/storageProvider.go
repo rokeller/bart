@@ -42,7 +42,7 @@ func NewAzureStorageProvider(
 ) archiving.StorageProvider {
 	blobClient, err := azblob.NewClient(serviceURL, cred, nil)
 	if nil != err {
-		glog.Fatalf("Failed to create Azure Blob client: %v", err)
+		glog.Exitf("Failed to create Azure Blob client: %v", err)
 	}
 
 	return newAzureStorageProvider(blobClient, containerName)
@@ -57,7 +57,7 @@ func newAzureStorageProvider(blobClient *azblob.Client, containerName string) ar
 	_, err := containerClient.Create(ctx, nil)
 	if nil != err {
 		if !bloberror.HasCode(err, bloberror.ContainerAlreadyExists) {
-			glog.Fatalf("Failed to create target container: %v", err)
+			glog.Exitf("Failed to create target container: %v", err)
 		}
 	}
 
@@ -106,7 +106,7 @@ func (p azureStorageProvider) ReadIndex() (io.ReadCloser, error) {
 	r, err := p.readBlob(BLOBNAME_INDEX, nil)
 	if nil != err {
 		if bloberror.HasCode(err, bloberror.BlobNotFound) {
-			return nil, archiving.IndexNotFound{}
+			return nil, archiving.IndexNotFound
 		}
 
 		return nil, err
@@ -123,7 +123,7 @@ func (p azureStorageProvider) ReadSettings() (io.ReadCloser, error) {
 	r, err := p.readBlob(BLOBNAME_SETTINGS, ctx)
 	if nil != err {
 		if bloberror.HasCode(err, bloberror.BlobNotFound) {
-			return nil, archiving.SettingsNotFound{}
+			return nil, archiving.SettingsNotFound
 		}
 
 		return nil, err

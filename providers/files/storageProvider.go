@@ -23,7 +23,7 @@ type fileStorageProvider struct {
 
 func NewFileStorageProvider(targetRoot string) archiving.StorageProvider {
 	if err := os.MkdirAll(targetRoot, 0700); nil != err {
-		glog.Fatalf("Failed to create archive target directory: %v", err)
+		glog.Exitf("Failed to create archive target directory: %v", err)
 	}
 
 	return fileStorageProvider{targetRoot: targetRoot}
@@ -86,7 +86,7 @@ func (p fileStorageProvider) ReadIndex() (io.ReadCloser, error) {
 	file, err := p.readFile(FILENAME_INDEX)
 
 	if os.IsNotExist(err) {
-		return nil, archiving.IndexNotFound{}
+		return nil, archiving.IndexNotFound
 	} else if nil != err {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (p fileStorageProvider) ReadSettings() (io.ReadCloser, error) {
 	file, err := p.readFile(FILENAME_SETTINGS)
 
 	if os.IsNotExist(err) {
-		return nil, archiving.SettingsNotFound{}
+		return nil, archiving.SettingsNotFound
 	} else if nil != err {
 		return nil, err
 	}

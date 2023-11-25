@@ -1,6 +1,7 @@
 package archiving
 
 import (
+	"errors"
 	"io"
 	"os"
 
@@ -9,19 +10,15 @@ import (
 
 // SettingsNotFound defines the error that is raised when an existing archive's
 // settings cannot be located.
-type SettingsNotFound struct{}
-
-func (SettingsNotFound) Error() string {
-	return "the settings were not found in the backup destination"
-}
+var SettingsNotFound = errors.New("the settings were not found in the backup destination")
 
 // IndexNotFound defines the error that is raised when an existing archive index
 // cannot be located.
-type IndexNotFound struct{}
+var IndexNotFound = errors.New("the index was not found in the backup destination")
 
-func (IndexNotFound) Error() string {
-	return "the index was not found in the backup destination"
-}
+// IndexDecryptionFailed defines the error that is raised when the decryption of
+// an archive's index failed, most likely due to a wrong crypto key.
+var IndexDecryptionFailed = errors.New("decryption of the archive index failed")
 
 type StorageProvider interface {
 	// When the backup destination does not have settings yet, the error must
