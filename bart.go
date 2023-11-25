@@ -2,107 +2,59 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/golang/glog"
 	"github.com/howeyc/gopass"
-	"github.com/rokeller/bart/archiving"
-	"github.com/rokeller/bart/domain"
-	"github.com/rokeller/bart/inspection"
 )
 
-type commandContext struct {
-	archive             archiving.Archive
+type commonArguments struct {
+	backupName          string
+	localRoot           string
 	degreeOfParallelism int
-	rootDir             string
-	finished            chan bool
 }
 
 func main() {
 	numCPU := runtime.NumCPU()
-
-	name := flag.String("name", "backup", "The name of the backup archive.")
-	root := flag.String("path", ".", "The path to the directory to backup and/or restore.")
-	degreeOfParallelism := flag.Int("p", 2*numCPU, "The degree of parallelism to use.")
-	missingBehavior := flag.String("m", "noop",
-		"A behavior for files missing locally: 'noop' to do nothing, 'restore' "+
-			"to restore them from the backup, 'delete' to delete them in the "+
-			"backup archive.")
+	args := commonArguments{}
+	flag.StringVar(&args.backupName, "name", "backup", "The name of the backup archive.")
+	flag.StringVar(&args.localRoot, "path", ".", "The path to the directory to backup and/or restore.")
+	flag.IntVar(&args.degreeOfParallelism, "p", 2*numCPU, "The degree of parallelism to use.")
 
 	updateFlags()
 	flag.Parse()
 
-	backupName := strings.TrimSpace(*name)
+	backupName := strings.TrimSpace(args.backupName)
 
 	if "" == backupName {
-		glog.Fatalf("The backup name must not be empty.")
+		glog.Exit("The backup name must not be empty.")
 	} else {
 		verifyFlags()
 	}
 
-	password := readPassword()
-	rootDir, _ := filepath.Abs(os.ExpandEnv(*root))
-	localContext := archiving.NewLocalContext(rootDir)
-	storageProvider := newStorageProvider(backupName)
-	archive := archiving.NewArchive(password, localContext, storageProvider)
-	defer archive.Close()
-
-	glog.V(2).Infof("missingBehavior: %v", *missingBehavior)
-
+	cmd := parseCommand(args)
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Kill, os.Interrupt)
-
-	ctx := commandContext{
-		archive:             archive,
-		degreeOfParallelism: *degreeOfParallelism,
-		rootDir:             *root,
-		finished:            make(chan bool),
-	}
-
-	go ctx.run()
+	go cmd.Run()
+	defer cmd.Stop()
 
 	select {
 	case s := <-c:
 		glog.V(0).Info("Got signal:", s)
-	case <-ctx.finished:
+	case <-cmd.C():
+		// The command has finished by itself.
 		break
 	}
-}
-
-func (c commandContext) run() {
-	// Visit local files and upload the ones missing or changed.
-	visitor := NewArchivingVisitor(c.archive, c.degreeOfParallelism)
-	err := inspection.Discover(c.rootDir, visitor)
-	if nil != err {
-		glog.Errorf("Discovery failed: %v", err)
-	}
-	visitor.Complete()
-
-	// Find files that are missing locally.
-	c.archive.FindLocallyMissing(func(entry domain.Entry) {
-		// The item is present in the backup, but not locally.
-		// TODO: decide based on command line actions
-		glog.V(1).Infof("File '%s' is in backup, but not local.", entry.RelPath)
-		if err := c.archive.Restore(entry); nil != err {
-			glog.Errorf("failed to restore '%s': %v", entry.RelPath, err)
-		} else {
-			fmt.Println(entry.RelPath)
-		}
-	})
-
-	c.finished <- true
 }
 
 func readPassword() string {
 	data, err := gopass.GetPasswdPrompt("Please enter your password: ", true, os.Stdin, os.Stderr)
 
 	if nil != err {
-		glog.Fatalf("Failed to read password: %v", err)
+		glog.Exitf("Failed to read password: %v", err)
 	}
 
 	return string(data)
