@@ -22,15 +22,21 @@ tags:
 	go build -o _out/bart-azurite -tags "azurite all"
 	go build -o _out/bart-files -tags "files all"
 
-.PHONY: run-test-azurite
-run-test-azurite:
+test-azurite-backup:
 	go build -tags "azurite all"
-	./bart -path _out/ -name test-bart -logtostderr=true -v=2
+	./bart -logtostderr=true -v=2 backup -path _out/ -name test-bart 
 
-.PHONY: run-photo-azurite
-run-test-files:
+test-azurite-restore:
+	go build -tags "azurite all"
+	./bart -logtostderr=true -v=2 restore -path _out/ -name test-bart
+
+test-files-backup:
 	go build -tags "files all"
-	./bart -path _out/ -name test-bart -logtostderr=true -v=2
+	./bart -logtostderr=true -v=2 backup -path _out/ -name test-bart
+
+test-files-restore:
+	go build -tags "files all"
+	./bart -logtostderr=true -v=2 restore -path _out/ -name test-bart
 
 linux: bart-linux-386 bart-linux-amd64 bart-linux-arm bart-linux-arm64
 windows: bart-windows-386.exe bart-windows-amd64.exe
