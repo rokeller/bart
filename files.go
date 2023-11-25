@@ -24,7 +24,7 @@ func updateFlags() {
 
 func verifyFlags() {
 	archiveRootPath, _ = filepath.Abs(os.ExpandEnv(*targetRoot))
-	glog.Infof("Backup to '%s'.", archiveRootPath)
+	glog.Infof("Backup archive in '%s'.", archiveRootPath)
 }
 
 func newStorageProvider(backupName string) archiving.StorageProvider {

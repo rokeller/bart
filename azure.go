@@ -21,14 +21,14 @@ func updateFlags() {
 
 func verifyFlags() {
 	if "" == *serviceURL {
-		glog.Fatal("The Azure blob service endpoint URL must not be empty.")
+		glog.Exit("The Azure blob service endpoint URL must not be empty.")
 	}
 }
 
 func newStorageProvider(backupName string) archiving.StorageProvider {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
-		glog.Fatalf("Credentials for Azure could not be found: %v", err)
+		glog.Exit("Credentials for Azure could not be found: %v", err)
 	}
 
 	provider := azureBlobs.NewAzureStorageProvider(*serviceURL, backupName, cred)

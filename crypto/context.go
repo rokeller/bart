@@ -92,7 +92,7 @@ func deriveKey(password string, s settings.Settings) []byte {
 
 	if nil != err {
 		// TODO: return error
-		glog.Fatalf("Failed to derive key: %v", err)
+		glog.Exitf("Failed to derive key: %v", err)
 	}
 
 	return key

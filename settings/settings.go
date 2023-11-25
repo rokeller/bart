@@ -20,7 +20,7 @@ func NewSettings() Settings {
 	salt := make([]byte, aes.BlockSize)
 
 	if _, err := rand.Read(salt); nil != err {
-		glog.Fatalf("Failed to generate random salt: %v", err)
+		glog.Exitf("Failed to generate random salt: %v", err)
 	}
 
 	return Settings{
