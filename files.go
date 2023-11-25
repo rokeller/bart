@@ -18,8 +18,8 @@ var (
 	archiveRootPath string
 )
 
-func updateFlags() {
-	targetRoot = flag.String("t", "$HOME/.backup", "The target root path for the backup.")
+func updateFlags(flags *flag.FlagSet) {
+	targetRoot = flags.String("t", "$HOME/.backup", "The target root path for the backup.")
 }
 
 func verifyFlags() {

@@ -15,8 +15,8 @@ var (
 	serviceURL *string
 )
 
-func updateFlags() {
-	serviceURL = flag.String("azep", "", "The blob service endpoint URL.")
+func updateFlags(flags *flag.FlagSet) {
+	serviceURL = flags.String("azep", "", "The blob service endpoint URL.")
 }
 
 func verifyFlags() {

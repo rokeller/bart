@@ -2,8 +2,6 @@ package main
 
 import (
 	"flag"
-
-	"github.com/rokeller/bart/archiving"
 )
 
 type cmdClean struct {
@@ -27,21 +25,18 @@ func (c *cmdClean) Stop() {
 	c.stop()
 }
 
-func newCleanCommand(
-	args []string,
-	commonArgs commonArguments,
-	archive archiving.Archive,
-) Command {
-	cleanCmd := updateUsage(flag.NewFlagSet("clean", flag.ExitOnError))
-	cleanCmd.String("l", "backup", "The location to clean: 'backup' to remove "+
+func newCleanCommand(args []string) Command {
+	cleanFlags := flag.NewFlagSet("clean", flag.ExitOnError)
+	cleanFlags.String("l", "backup", "The location to clean: 'backup' to remove "+
 		"files missing locally from the backup, 'local' to remove files missing "+
 		"in the backup from the local file system.")
-	cleanCmd.Parse(args)
+	commonArgs := addCommonArgs(cleanFlags)
+	cleanFlags.Parse(args)
 
 	return &cmdClean{
 		cmdBase: cmdBase{
-			args:     commonArgs,
-			archive:  archive,
+			args:     *commonArgs,
+			archive:  newArchive(*commonArgs),
 			finished: make(chan bool),
 		},
 	}

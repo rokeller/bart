@@ -2,9 +2,9 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/golang/glog"
@@ -17,21 +17,31 @@ type cmdBase struct {
 	finished chan bool
 }
 
+type commonArguments struct {
+	backupName          string
+	localRoot           string
+	degreeOfParallelism int
+}
+
 type Command interface {
 	Run()
 	Stop()
 	C() <-chan bool
 }
 
-func parseCommand(args commonArguments) Command {
-	remainingArgs := flag.Args()
-	if len(remainingArgs) < 1 {
+type commandFactory func([]string) Command
+
+func parseCommand() Command {
+	// The following is needed for glog, which puts its flags on the "shared" set.
+	flag.Parse()
+	allArgs := flag.Args()
+	if len(allArgs) < 1 {
 		glog.Exitln("Expected command 'backup', 'restore', or 'clean'.")
 	}
 
-	var cmdFactory func([]string, commonArguments, archiving.Archive) Command
-
-	switch strings.ToLower(remainingArgs[0]) {
+	// Figure out what command we're dealing with first.
+	var cmdFactory commandFactory
+	switch strings.ToLower(allArgs[0]) {
 	case "backup":
 		cmdFactory = newBackupCommand
 	case "restore":
@@ -43,12 +53,34 @@ func parseCommand(args commonArguments) Command {
 		glog.Exitln("Expected command 'backup', 'restore', or 'clean'.")
 	}
 
-	cmd := cmdFactory(remainingArgs[1:], args, newArchive(args))
+	cmd := cmdFactory(allArgs[1:])
 
 	return cmd
 }
 
+func addCommonArgs(flagset *flag.FlagSet) *commonArguments {
+	commonArgs := commonArguments{}
+	flagset.StringVar(&commonArgs.backupName,
+		"name", "backup", "The name of the backup archive.")
+	flagset.StringVar(&commonArgs.localRoot,
+		"path", ".", "The path to the directory to backup and/or restore.")
+	flagset.IntVar(&commonArgs.degreeOfParallelism,
+		"p", runtime.NumCPU(), "The degree of parallelism to use.")
+
+	updateFlags(flagset)
+
+	return &commonArgs
+}
+
 func newArchive(args commonArguments) archiving.Archive {
+	args.backupName = strings.TrimSpace(args.backupName)
+
+	if "" == strings.TrimSpace(args.backupName) {
+		glog.Exit("The backup name must not be empty.")
+	} else {
+		verifyFlags()
+	}
+
 	password := readPassword()
 	rootDir, _ := filepath.Abs(os.ExpandEnv(args.localRoot))
 	localContext := archiving.NewLocalContext(rootDir)
@@ -56,18 +88,6 @@ func newArchive(args commonArguments) archiving.Archive {
 	archive := archiving.NewArchive(password, localContext, storageProvider)
 
 	return archive
-}
-
-func updateUsage(flags *flag.FlagSet) *flag.FlagSet {
-	oldUsage := flags.Usage
-	flags.Usage = func() {
-		oldUsage()
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "Common arguments:")
-		flag.Usage()
-	}
-
-	return flags
 }
 
 func (c cmdBase) signalFinished() {

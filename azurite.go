@@ -3,11 +3,13 @@
 package main
 
 import (
+	"flag"
+
 	"github.com/rokeller/bart/archiving"
 	"github.com/rokeller/bart/providers/azureBlobs"
 )
 
-func updateFlags() {
+func updateFlags(flags *flag.FlagSet) {
 }
 
 func verifyFlags() {

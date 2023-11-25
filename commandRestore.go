@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/golang/glog"
-	"github.com/rokeller/bart/archiving"
 	"github.com/rokeller/bart/domain"
 )
 
@@ -59,18 +58,15 @@ func (c *cmdRestore) Stop() {
 	c.stop()
 }
 
-func newRestoreCommand(
-	args []string,
-	commonArgs commonArguments,
-	archive archiving.Archive,
-) Command {
-	restoreCmd := updateUsage(flag.NewFlagSet("restore", flag.ExitOnError))
-	restoreCmd.Parse(args)
+func newRestoreCommand(args []string) Command {
+	restoreFlags := flag.NewFlagSet("restore", flag.ExitOnError)
+	commonArgs := addCommonArgs(restoreFlags)
+	restoreFlags.Parse(args)
 
 	return &cmdRestore{
 		cmdBase: cmdBase{
-			args:     commonArgs,
-			archive:  archive,
+			args:     *commonArgs,
+			archive:  newArchive(*commonArgs),
 			finished: make(chan bool),
 		},
 

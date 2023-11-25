@@ -4,7 +4,6 @@ import (
 	"flag"
 
 	"github.com/golang/glog"
-	"github.com/rokeller/bart/archiving"
 	"github.com/rokeller/bart/inspection"
 )
 
@@ -35,18 +34,15 @@ func (c *cmdBackup) Stop() {
 	c.stop()
 }
 
-func newBackupCommand(
-	args []string,
-	commonArgs commonArguments,
-	archive archiving.Archive,
-) Command {
-	backupFlags := updateUsage(flag.NewFlagSet("backup", flag.ExitOnError))
+func newBackupCommand(args []string) Command {
+	backupFlags := flag.NewFlagSet("backup", flag.ExitOnError)
+	commonArgs := addCommonArgs(backupFlags)
 	backupFlags.Parse(args)
 
 	return &cmdBackup{
 		cmdBase: cmdBase{
-			args:     commonArgs,
-			archive:  archive,
+			args:     *commonArgs,
+			archive:  newArchive(*commonArgs),
 			finished: make(chan bool),
 		},
 	}
