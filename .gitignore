@@ -14,4 +14,7 @@
 # ProtoBuf compiler output
 *.pb.go
 
+_out/
 bart
+
+.azurite/

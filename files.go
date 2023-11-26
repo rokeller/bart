@@ -4,11 +4,13 @@ package main
 
 import (
 	"flag"
-	"log"
 	"os"
+	"path"
 	"path/filepath"
 
+	"github.com/golang/glog"
 	"github.com/rokeller/bart/archiving"
+	"github.com/rokeller/bart/providers/files"
 )
 
 var (
@@ -16,22 +18,18 @@ var (
 	archiveRootPath string
 )
 
-func updateFlags() {
-	targetRoot = flag.String("t", "$HOME/.backup", "The target root path for the backup.")
+func updateFlags(flags *flag.FlagSet) {
+	targetRoot = flags.String("t", "$HOME/.backup", "The target root path for the backup.")
 }
 
 func verifyFlags() {
 	archiveRootPath, _ = filepath.Abs(os.ExpandEnv(*targetRoot))
-	log.Printf("Backup to '%s'.", archiveRootPath)
-
-	if err := os.MkdirAll(archiveRootPath, 0700); nil != err {
-		log.Panicf("Failed to create archive directory: %v", err)
-	}
+	glog.Infof("Backup archive in '%s'.", archiveRootPath)
 }
 
-func newArchive(backupName, rootPath, password string) archiving.Archive {
-	log.Printf("Backup '%s' as '%s' to '%s'.", rootPath, backupName, archiveRootPath)
-	archive := archiving.NewFileArchive(archiveRootPath, rootPath, backupName, password)
+func newStorageProvider(backupName string) archiving.StorageProvider {
+	backupRoot := path.Join(archiveRootPath, backupName)
+	provider := files.NewFileStorageProvider(backupRoot)
 
-	return archive
+	return provider
 }

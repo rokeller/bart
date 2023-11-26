@@ -1,77 +1,36 @@
 package main
 
 import (
-	"flag"
-	"log"
 	"os"
-	"path/filepath"
-	"runtime"
-	"strings"
+	"os/signal"
 
-	"github.com/rokeller/bart/archiving"
-	"github.com/rokeller/bart/inspection"
-
+	"github.com/golang/glog"
 	"github.com/howeyc/gopass"
 )
 
 func main() {
-	numCPU := runtime.NumCPU()
+	cmd := parseCommand()
 
-	name := flag.String("name", "backup", "The name of the backup archive.")
-	root := flag.String("path", ".", "The path to the directory to backup and/or restore.")
-	degreeOfParallelism := flag.Int("p", 2*numCPU, "The degree of parallelism to use.")
-	missingBehavior := flag.String("m", "noop",
-		"A behavior for files missing locally: 'noop' to do nothing, 'restore' "+
-			"to restore them from the backup, 'delete' to delete them in the "+
-			"backup archive.")
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Kill, os.Interrupt)
 
-	updateFlags()
-	flag.Parse()
+	go cmd.Run()
+	defer cmd.Stop()
 
-	backupName := strings.TrimSpace(*name)
-	log.SetFlags(log.Ltime)
-
-	if "" == backupName {
-		log.Fatalf("The backup name must not be empty.")
-	} else {
-		verifyFlags()
+	select {
+	case s := <-c:
+		glog.V(0).Info("Got signal:", s)
+	case <-cmd.Finished():
+		// The command has finished by itself.
+		break
 	}
-
-	password := readPassword()
-	rootPath, _ := filepath.Abs(os.ExpandEnv(*root))
-
-	archive := newArchive(backupName, rootPath, password)
-	defer archive.Close()
-
-	finder := inspection.NewFileFinder(rootPath)
-
-	finder.Find(&archivingVisitor{
-		archive:             archive,
-		degreeOfParallelism: *degreeOfParallelism,
-	})
-
-	var handler archiving.MissingFileHandler
-
-	switch *missingBehavior {
-	case "restore":
-		handler = RestoreMissingFileHandler()
-
-	case "delete":
-		handler = DeleteMissingFileHandler()
-
-	default:
-	case "noop":
-		handler = NoopMissingFileHandler()
-	}
-
-	archive.HandleMissing(handler)
 }
 
 func readPassword() string {
-	data, err := gopass.GetPasswdPrompt("Please enter your password: ", true, os.Stdin, os.Stdout)
+	data, err := gopass.GetPasswdPrompt("Please enter your password: ", true, os.Stdin, os.Stderr)
 
 	if nil != err {
-		log.Panicf("Failed to read password: %v", err)
+		glog.Exitf("Failed to read password: %v", err)
 	}
 
 	return string(data)

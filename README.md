@@ -1,18 +1,19 @@
 # bart - backup and restore tool
 
+[![Build](https://github.com/rokeller/bart/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/rokeller/bart/actions/workflows/build.yml)
+
 ## Overview
 
 `bart` is a simple backup/restore tool for data stored in a local file system.
-Currently bart by default only supports backing up to Azure Blob Storage, though
-by compiling it with the `files` tag you can make it back up to the file system
-too.
+Currently `bart` only supports backing up to Azure Storage blobs or to a file
+system.
 
 `bart` supports the following:
 
 * backup of local files
 * restore of files missing locally but available in the archive
 * password based AES encryption for the archive index and archived files
-* concealing original file paths by hashing them
+* concealing original file paths in backup archives by hashing them
 
 > **Disclaimer**: Use at your own risk!
 
@@ -20,68 +21,100 @@ too.
 
 > **Note**: When downloading packages from a release, the binaries contained
 > within are named `bart-<backupTarget>-<os>-<arch>` (and optionally with a file
-> extension `.exe` for Windows). You can safely rename these executables to
-> `bart` (or `bart.exe` on Windows) and call them with the usages outlined
-> below, or you can call them just like they're unpacked.
+> extension `.exe` for Windows) and they are packaged up in `.tar.gz` (Linux)
+> or `.zip` files (Windows). You can safely rename these executables after
+> extraction to `bart` (or `bart.exe` on Windows) and call them with the usages
+> documented below, or you can call them just using their names from the packages.
 
-### Backup to Azure Blob Storage
+`bart` has a few sub-commands:
 
-```text
-Usage of ./bart:
-  -azep string
-        The blob service endpoint URL.
-  -m string
-        A behavior for files missing locally: 'noop' to do nothing, 'restore' to restore them from the backup, 'delete' to delete them in the backup archive. (default "noop")
-  -name string
-        The name of the backup archive. (default "backup")
-  -p int
-        The degree of parallelism to use. (default <depending on available CPUs>)
-  -path string
-        The path to the directory to backup and/or restore. (default ".")
-```
+* `backup` to run in backup mode, in which `bart` looks for files that are
+  present locally, but not in the backup archive.
+* `restore` to run in restore mode, where `bart` goes through all files found in
+  the backup archive and checks if they're present locally too.
+* `cleanup` to remove files in the backup archive or locally depending on the
+  `-l` (location) flag.
 
-Example:
+You can get more information on the flags available for each sub-command by
+running
 
 ```bash
-./bart -name my-pictures -path ~/Pictures -azep 'https://myblobstorage.blob.core.windows.net/'
+bart <sub-command> --help
 ```
 
-#### Authentication
+After parsing command line arguments and making sure everything is in order,
+`bart` will ask you for a password. This password is used together with a _salt_
+(randomly generated the first time a backup archive in a target store is touched)
+to derive a symmetric encryption key. This key is used to encrypt each file
+before it is uploaded in `backup` mode to the target store, or to decrypt each
+file before it is downloaded in `restore` mode from the target store.
 
-`bart` currently uses default means for authentication with Azure to access the
-blob storage services. The details of the different places where credentials are
-looked for can be found in the [package documentation](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.4.0).
-
-To summarize, the following credentials are tried in order:
-
-1. [Environment variables](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.4.0#readme-environment-variables)
-2. [Azure Workload identity](https://learn.microsoft.com/en-us/azure/active-directory/workload-identities/workload-identities-overview)
-3. Managed identities
-4. Azure CLI credential
-
-When running `bart` in an Azure workload itself, #2 and #3 above may be easiest
-to use. When running in a shell where you're already logged in to Azure CLI, #4
-is probably best. Otherwise, using the environment variables, typically in
-combination with a service principal may be easiest.
-
-### Backup to File System (built with build tag `files`)
-
-```text
-Usage of ./bart:
-  -m string
-        A behavior for files missing locally: 'noop' to do nothing, 'restore' to restore them from the backup, 'delete' to delete them in the backup archive. (default "noop")
-  -name string
-        The name of the backup archive. (default "backup")
-  -p int
-        The degree of parallelism to use. (default <depending on available CPUs>)
-  -path string
-        The path to the directory to backup and/or restore. (default ".")
-  -t string
-        The target root path for the backup. (default "$HOME/.backup")
-```
-
-Example:
+The password can either be entered by the user after the program has started,
+or it can be piped into `bart` as follows. Any other means to pipe the password
+works too, of course.
 
 ```bash
-./bart -name my-pictures -path ~/Pictures -t /mnt/mounted-network-drive/backups -m restore
+$ cat .password
+my-password
+$ cat .password | bart <sub-command>
 ```
+
+### Target Azure Storage blobs
+
+To use a backup archive stored in Azure Storage blobs, you must provide `bart`
+with two pieces of information:
+
+1. The blob service endpoint URL for an Azure Storage account, through the `-azep`
+   flag on the command line. The value typically looks like 
+   `https://your-storage-account-name.blob.core.windows.net/` where
+   `your-storage-account-name` is the name of the storage account you want to
+   use in Azure. The blob service endpoint URL can be found in the Azure portal
+   under _Endpoints_ for the storage account in question. The DNS suffix may
+   look different depending on the cloud (Public vs Government vs China etc.)
+   you're using.
+2. A credential to access the Azure Storage account. There are not command line
+   switches to provide the credential, instead they must be passed in a way
+   supported by the [Azure Identity Client module](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity).
+   The module will try to look for a credential using the following order:
+
+   1. [Environment variables](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity#readme-environment-variables)
+   2. [Azure Workload identity](https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-overview)
+   3. Managed identities
+   4. Azure CLI credential
+
+   When running `bart` in an Azure workload itself, #2 and #3 above are best/easiest
+   to use. When running in a shell where you're already logged in to Azure CLI, #4
+   is probably best. Otherwise, using the environment variables, typically in
+   combination with a service principal may be easiest.
+
+### Target the file system
+
+To use a backup archive stored in the file system itself, you must provide `bart`
+with one additional piece of information:
+
+1. The root directory where the backup files should be added, through the `-t`
+   (target) flag on the command line.
+
+## Build
+
+To build `bart` by yourself you can take advantage of the `makefile` in the repo.
+
+```bash
+# build for your default OS and architecture for Azurite (Azure Storage emulator) target
+make bart
+
+# or, to build for Azure backup target
+make bart TAGS=azure
+
+# or, to also create the x86 and x64 binaries for Windows
+make all
+```
+
+Alternatively, you can just use `go build -tags <TAGS>` yourself. The go build
+tags used are described in the table below.
+
+| Build tag | Meaning |
+| --- | --- |
+| `azure` | Target Azure Storage blobs for backup archives. |
+| `azurite` | Target _Azurite_, the Azure Storage blobs emulator for backup archives. |
+| `files` | Target the file system for backup archives. |

@@ -32,5 +32,8 @@ jobs:
     - name: Build Azure
       run: go build -o _out/bart-azure -tags "azure all"
 
+    - name: Build Azurite
+      run: go build -o _out/bart-azurite -tags "azurite all"
+
     - name: Build Files
       run: go build -o _out/bart-files -tags "files all"

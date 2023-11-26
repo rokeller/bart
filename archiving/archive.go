@@ -2,146 +2,161 @@ package archiving
 
 import (
 	"io"
-	"log"
 	"os"
 	"path"
-	"sync"
 	"time"
 
+	"github.com/golang/glog"
+	"github.com/rokeller/bart/crypto"
 	"github.com/rokeller/bart/domain"
-	"github.com/rokeller/bart/inspection"
+	"github.com/rokeller/bart/settings"
 )
 
-// MissingFileHandler defines the contract for a handler of missing files.
-type MissingFileHandler interface {
-	HandleMissing(archive Archive, entry domain.Entry)
+type Archive struct {
+	localContext    LocalContext
+	storageProvider StorageProvider
+	settings        settings.Settings
+	cryptoContext   crypto.AesOfbContext
+	index           *Index
 }
 
-// Archive defines the contract for an Archive.
-type Archive interface {
-	Backup(ctx inspection.Context)
-	Restore(entry domain.Entry)
-	Delete(entry domain.Entry)
-
-	HandleMissing(handler MissingFileHandler)
-
-	Close()
-
-	GetBackupIndex() domain.BackupIndex
-}
-
-type archiveBase struct {
-	localRoot string
-
-	index        Index
-	missingFiles domain.BackupIndex
-	mutex        sync.Mutex
-}
-
-func (a *archiveBase) Close() {
-	a.index.Store()
-}
-
-func (a *archiveBase) handleMissing(impl Archive, handler MissingFileHandler) {
-	for relPath, meta := range a.missingFiles {
-		log.Printf("Missing local file '%v' ... ", relPath)
-		handler.HandleMissing(impl, domain.Entry{
-			RelPath:       relPath,
-			EntryMetadata: meta,
-		})
+// NewArchive creates a new archive.
+func NewArchive(password string, localContext LocalContext, storageProvider StorageProvider) Archive {
+	a := Archive{
+		localContext:    localContext,
+		storageProvider: storageProvider,
+		settings:        loadSettings(storageProvider),
 	}
 
-	numMissing := len(a.missingFiles)
-	log.Printf("%d file(s) are missing locally.", numMissing)
-	if numMissing > 0 {
-		log.Println("Run with")
-		log.Println("\t-m restore")
-		log.Println("to restore them locally, or run with")
-		log.Println("\t-m delete")
-		log.Println("to delete them in the backup archive.")
-	}
-}
-
-func (a *archiveBase) init() *archiveBase {
-	a.index.Load()
-
-	a.missingFiles = make(domain.BackupIndex, 0)
-	a.mutex = sync.Mutex{}
-
-	a.mutex.Lock()
-	defer a.mutex.Unlock()
-
-	for key, val := range a.index.getIndex() {
-		a.missingFiles[key] = val
-	}
+	a.cryptoContext = crypto.NewAesOfbContext(password, a.settings)
+	a.index = newIndex(&a)
+	glog.Infof("The archive index currently has %d file(s).", a.index.Count())
 
 	return a
 }
 
-func (a *archiveBase) getArchivedRelFilePath(relPath string) string {
-	hash := domain.GetRelPathHash(relPath)
-	archiveDirPath := path.Join(hash[0:2], hash[2:4])
-
-	return path.Join(archiveDirPath, hash)
+// NeedsBackup determines if the given entry needs to be backed up.
+func (a Archive) NeedsBackup(entry domain.Entry) bool {
+	return a.index.needsBackup(entry)
 }
 
-func (a *archiveBase) shouldAddOrUpdate(ctx inspection.Context) bool {
-	a.mutex.Lock()
-	defer a.mutex.Unlock()
-	delete(a.missingFiles, ctx.RelPath())
+// GetEntry returns a pointer to domain.Entry describing the file in the backup
+// archive or null if the file is not present in the backup archive.
+func (a Archive) GetEntry(relPath string) *domain.Entry {
+	idxEntry := a.index.getEntry(relPath)
+	if nil == idxEntry ||
+		(idxEntry.EntryFlags&EntryFlagsPresentInBackup) == EntryFlagsNone {
+		// Either there is no entry at all, or the entry does not track an file
+		// that is present in the backup.
+		return nil
+	}
 
-	return a.index.shouldAddOrUpdate(ctx)
+	return &domain.Entry{
+		RelPath:       relPath,
+		EntryMetadata: idxEntry.EntryMetadata,
+	}
 }
 
-func (a *archiveBase) backup(ctx inspection.Context, archiveWriter io.Writer) {
-	var infile *os.File
-	var err error
+// Backup backs up the given entry.
+func (a Archive) Backup(entry domain.Entry) error {
+	absPath := path.Join(a.localContext.rootDir, entry.RelPath)
 
 	// Open the local file ...
-	if infile, err = os.Open(ctx.AbsPath()); nil != err {
-		log.Panicf("Failed to open file: %v", err)
+	src, err := os.Open(absPath)
+	if nil != err {
+		glog.Errorf("Failed to open local file reader: %v", err)
+		return err
 	}
+	defer src.Close()
 
-	defer infile.Close()
+	w, err := a.newBackupFile(entry)
+	if nil != err {
+		glog.Errorf("Failed to create temporary file: %v", err)
+		return err
+	}
+	defer w.Close()
+
+	cw, err := a.cryptoContext.Encrypt(w)
+	if nil != err {
+		glog.Errorf("Failed to encrypt backup writer: %v", err)
+		return err
+	}
+	defer cw.Close()
 
 	// ... and copy it to the archive writer.
-	if _, err = io.Copy(archiveWriter, infile); err != nil {
-		log.Panicf("Failed to encrypt file: %v", err)
+	if _, err = io.Copy(cw, src); err != nil {
+		glog.Errorf("Failed to write to backup: %v", err)
+		return err
 	}
 
-	// Update the index to hold this new file too.
-	a.index.AddOrUpdate(ctx.Entry())
+	if err := w.Upload(); nil != err {
+		return err
+	}
+
+	a.index.setEntry(entry, EntryFlagsPresentInBackup|EntryFlagsPresentInLocal, true)
+
+	return nil
 }
 
-func (a *archiveBase) restore(entry domain.Entry, archiveReader io.Reader) {
-	var err error
-
-	// Create the local directory structure and file for restoring.
+// Restore restores the given entry.
+func (a Archive) Restore(entry domain.Entry) error {
 	relDir := path.Dir(entry.RelPath)
-	restoreDir := path.Join(a.localRoot, relDir)
-	restorePath := path.Join(a.localRoot, entry.RelPath)
+	restoreDir := path.Join(a.localContext.rootDir, relDir)
+	restorePath := path.Join(a.localContext.rootDir, entry.RelPath)
 
-	if err = os.MkdirAll(restoreDir, 0700); nil != err {
-		log.Panicf("Failed to create restored directory: %v", err)
+	if err := os.MkdirAll(restoreDir, 0700); nil != err {
+		return err
 	}
 
-	var outfile *os.File
+	r, err := a.storageProvider.ReadBackupFile(entry)
+	if nil != err {
+		return err
+	}
+	defer r.Close()
 
-	if outfile, err = os.Create(restorePath); nil != err {
-		log.Panicf("Failed to create restored file: %v", err)
+	cr, err := a.cryptoContext.Decrypt(r)
+	if nil != err {
+		return err
 	}
 
+	outfile, err := os.Create(restorePath)
+	if nil != err {
+		return err
+	}
 	defer outfile.Close()
 
-	if _, err = io.Copy(outfile, archiveReader); err != nil {
-		log.Panicf("Failed to deencrypt file: %v", err)
+	if _, err = io.Copy(outfile, cr); err != nil {
+		return err
 	}
 
 	// Restore the timestamps to be the ones from the backup index metadata.
 	ts := time.Unix(entry.Timestamp, 0)
-	os.Chtimes(restorePath, ts, ts)
+	return os.Chtimes(restorePath, ts, ts)
 }
 
-func (a *archiveBase) delete(entry domain.Entry) {
-	a.index.Remove(entry.RelPath)
+// Delete deletes the given entry from the backup.
+func (a Archive) Delete(entry domain.Entry) error {
+	if err := a.storageProvider.DeleteBackupFile(entry); nil != err {
+		return err
+	}
+	a.index.deleteEntry(entry.RelPath)
+
+	return nil
+}
+
+// FindLocallyMissing finds entries that are in the backup but not available
+// locally.
+func (a Archive) FindLocallyMissing(fn func(entry domain.Entry)) {
+	a.index.walkIndex(func(entry domain.Entry, flags EntryFlags) error {
+		if flags&(EntryFlagsPresentInLocal|EntryFlagsPresentInBackup) == EntryFlagsPresentInBackup {
+			fn(entry)
+		}
+
+		return nil
+	})
+}
+
+// Close closes the archive.
+func (a Archive) Close() error {
+	return a.index.Close()
 }
