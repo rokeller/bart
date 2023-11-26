@@ -152,8 +152,12 @@ func (i *Index) handleMessage(msg message) {
 		}
 
 	case delMessage:
-		i.dirty = true
+		_, found := i.entries[m.relPath]
 		delete(i.entries, m.relPath)
+		if found {
+			// We removed an existing entry from the index, so mark it dirty.
+			i.dirty = true
+		}
 
 	case syncMessage:
 		// Signal the sender that its logic can start

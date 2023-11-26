@@ -20,6 +20,10 @@ var IndexNotFound = errors.New("the index was not found in the backup destinatio
 // an archive's index failed, most likely due to a wrong crypto key.
 var IndexDecryptionFailed = errors.New("decryption of the archive index failed")
 
+// BackupFileNotFound defines the error that is raised when a file is not found
+// in the backup archive.
+var BackupFileNotFound = errors.New("the file was not found in the backup")
+
 type StorageProvider interface {
 	// When the backup destination does not have settings yet, the error must
 	// be archiving.SettingsNotFound{}.
