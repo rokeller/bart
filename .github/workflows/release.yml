@@ -49,17 +49,20 @@ jobs:
         
         ARCHIVE_BASE_NAME="bart-${{ matrix.backupTarget }}-${{ matrix.os }}-${{ matrix.arch }}"
         GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build \
-            -o _out/$ARCHIVE_BASE_NAME$EXT \
-            -tags '${{ matrix.backupTarget }} all'
+            -o _out/bart$EXT \
+            -tags '${{ matrix.backupTarget }} all' \
+            -ldflags '-s -w'
+        
+        ls -l _out
         
         case "${{ matrix.os }}" in
             windows)
-                zip -j _out/$ARCHIVE_BASE_NAME.zip _out/$ARCHIVE_BASE_NAME$EXT
+                zip -j _out/$ARCHIVE_BASE_NAME.zip _out/bart$EXT
                 echo "ARCHIVE_PATH=_out/$ARCHIVE_BASE_NAME.zip" >> $GITHUB_ENV
                 echo "ARCHIVE_MEDIA_TYPE=application/zip" >> $GITHUB_ENV
                 ;;
             *)
-                tar -cvzf _out/$ARCHIVE_BASE_NAME.tar.gz -C _out $ARCHIVE_BASE_NAME$EXT
+                tar -cvzf _out/$ARCHIVE_BASE_NAME.tar.gz -C _out bart$EXT
                 echo "ARCHIVE_PATH=_out/$ARCHIVE_BASE_NAME.tar.gz" >> $GITHUB_ENV
                 echo "ARCHIVE_MEDIA_TYPE=application/gzip" >> $GITHUB_ENV
                 ;;

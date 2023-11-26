@@ -35,6 +35,10 @@ func (p fileStorageProvider) DeleteBackupFile(entry domain.Entry) error {
 	archiveFullPath := path.Join(p.targetRoot, archiveRelPath)
 
 	if err := os.Remove(archiveFullPath); nil != err {
+		if os.IsNotExist(err) {
+			return archiving.BackupFileNotFound
+		}
+
 		return err
 	}
 
@@ -53,13 +57,29 @@ func (p fileStorageProvider) DeleteBackupFile(entry domain.Entry) error {
 // DeleteIndex implements archiving.StorageProvider.
 func (p fileStorageProvider) DeleteIndex() error {
 	targetPath := path.Join(p.targetRoot, FILENAME_INDEX)
-	return os.Remove(targetPath)
+	if err := os.Remove(targetPath); nil != err {
+		if os.IsNotExist(err) {
+			return archiving.IndexNotFound
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // DeleteSettings implements archiving.StorageProvider.
 func (p fileStorageProvider) DeleteSettings() error {
 	targetPath := path.Join(p.targetRoot, FILENAME_SETTINGS)
-	return os.Remove(targetPath)
+	if err := os.Remove(targetPath); nil != err {
+		if os.IsNotExist(err) {
+			return archiving.SettingsNotFound
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // NewIndexWriter implements archiving.StorageProvider.
@@ -78,13 +98,20 @@ func (p fileStorageProvider) NewSettingsWriter() (io.WriteCloser, error) {
 func (p fileStorageProvider) ReadBackupFile(entry domain.Entry) (io.ReadCloser, error) {
 	archiveRelPath := p.getArchiveRelPath(entry)
 	archiveFullPath := path.Join(p.targetRoot, archiveRelPath)
-	return os.Open(archiveFullPath)
+
+	file, err := os.Open(archiveFullPath)
+	if os.IsNotExist(err) {
+		return nil, archiving.BackupFileNotFound
+	} else if nil != err {
+		return nil, err
+	}
+
+	return file, nil
 }
 
 // ReadIndex implements archiving.StorageProvider.
 func (p fileStorageProvider) ReadIndex() (io.ReadCloser, error) {
 	file, err := p.readFile(FILENAME_INDEX)
-
 	if os.IsNotExist(err) {
 		return nil, archiving.IndexNotFound
 	} else if nil != err {
@@ -97,7 +124,6 @@ func (p fileStorageProvider) ReadIndex() (io.ReadCloser, error) {
 // ReadSettings implements archiving.StorageProvider.
 func (p fileStorageProvider) ReadSettings() (io.ReadCloser, error) {
 	file, err := p.readFile(FILENAME_SETTINGS)
-
 	if os.IsNotExist(err) {
 		return nil, archiving.SettingsNotFound
 	} else if nil != err {

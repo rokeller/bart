@@ -40,6 +40,23 @@ func (a Archive) NeedsBackup(entry domain.Entry) bool {
 	return a.index.needsBackup(entry)
 }
 
+// GetEntry returns a pointer to domain.Entry describing the file in the backup
+// archive or null if the file is not present in the backup archive.
+func (a Archive) GetEntry(relPath string) *domain.Entry {
+	idxEntry := a.index.getEntry(relPath)
+	if nil == idxEntry ||
+		(idxEntry.EntryFlags&EntryFlagsPresentInBackup) == EntryFlagsNone {
+		// Either there is no entry at all, or the entry does not track an file
+		// that is present in the backup.
+		return nil
+	}
+
+	return &domain.Entry{
+		RelPath:       relPath,
+		EntryMetadata: idxEntry.EntryMetadata,
+	}
+}
+
 // Backup backs up the given entry.
 func (a Archive) Backup(entry domain.Entry) error {
 	absPath := path.Join(a.localContext.rootDir, entry.RelPath)
@@ -119,7 +136,12 @@ func (a Archive) Restore(entry domain.Entry) error {
 
 // Delete deletes the given entry from the backup.
 func (a Archive) Delete(entry domain.Entry) error {
-	panic("unimplemented")
+	if err := a.storageProvider.DeleteBackupFile(entry); nil != err {
+		return err
+	}
+	a.index.deleteEntry(entry.RelPath)
+
+	return nil
 }
 
 // FindLocallyMissing finds entries that are in the backup but not available

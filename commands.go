@@ -47,8 +47,8 @@ func parseCommand() Command {
 		cmdFactory = newBackupCommand
 	case "restore":
 		cmdFactory = newRestoreCommand
-	case "clean":
-		cmdFactory = newCleanCommand
+	case "cleanup":
+		cmdFactory = newCleanupCommand
 
 	default:
 		glog.Exitln("Expected command 'backup', 'restore', or 'clean'.")

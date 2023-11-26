@@ -68,17 +68,52 @@ func newAzureStorageProvider(blobClient *azblob.Client, containerName string) ar
 
 // DeleteBackupFile implements archiving.StorageProvider.
 func (p azureStorageProvider) DeleteBackupFile(entry domain.Entry) error {
-	panic("unimplemented")
+	blobName := blobNameForEntry(entry)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	if err := p.deleteBlob(blobName, ctx); nil != err {
+		if bloberror.HasCode(err, bloberror.BlobNotFound) {
+			return archiving.BackupFileNotFound
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // DeleteIndex implements archiving.StorageProvider.
 func (p azureStorageProvider) DeleteIndex() error {
-	panic("unimplemented")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	if err := p.deleteBlob(BLOBNAME_INDEX, ctx); nil != err {
+		if bloberror.HasCode(err, bloberror.BlobNotFound) {
+			return archiving.IndexNotFound
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // DeleteSettings implements archiving.StorageProvider.
 func (p azureStorageProvider) DeleteSettings() error {
-	panic("unimplemented")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	if err := p.deleteBlob(BLOBNAME_SETTINGS, ctx); nil != err {
+		if bloberror.HasCode(err, bloberror.BlobNotFound) {
+			return archiving.SettingsNotFound
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // NewIndexWriter implements archiving.StorageProvider.
@@ -94,9 +129,19 @@ func (p azureStorageProvider) NewSettingsWriter() (io.WriteCloser, error) {
 // ReadBackupFile implements archiving.StorageProvider.
 func (p azureStorageProvider) ReadBackupFile(entry domain.Entry) (io.ReadCloser, error) {
 	blobName := blobNameForEntry(entry)
-	// Not using a context with a timeout, since the index can be quite big
-	// and take a while to read.
-	return p.readBlob(blobName, nil)
+
+	// Not using a context with a timeout, since the file can be quite big and
+	// take a while to read.
+	r, err := p.readBlob(blobName, nil)
+	if nil != err {
+		if bloberror.HasCode(err, bloberror.BlobNotFound) {
+			return nil, archiving.BackupFileNotFound
+		}
+
+		return nil, err
+	}
+
+	return r, nil
 }
 
 // ReadIndex implements archiving.StorageProvider.
@@ -140,6 +185,17 @@ func (p azureStorageProvider) WriteBackupFile(
 	blobName := blobNameForEntry(entry)
 
 	return p.uploadFile(blobName, file, nil)
+}
+
+func (p azureStorageProvider) deleteBlob(blobName string, ctx context.Context) error {
+	if nil == ctx {
+		ctx = context.Background()
+	}
+
+	blobClient := p.client.NewBlobClient(blobName)
+	_, err := blobClient.Delete(ctx, nil)
+
+	return err
 }
 
 func (p azureStorageProvider) readBlob(blobName string, ctx context.Context) (io.ReadCloser, error) {
