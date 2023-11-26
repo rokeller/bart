@@ -30,8 +30,8 @@ system.
   present locally, but not in the backup archive.
 * `restore` to run in restore mode, where `bart` goes through all files found in
   the backup archive and checks if they're present locally too.
-* `clean` to remove files in the backup archive or locally depending on the `-l`
-  (location) flag.
+* `cleanup` to remove files in the backup archive or locally depending on the
+  `-l` (location) flag.
 
 You can get more information on the flags available for each sub-command by
 running
