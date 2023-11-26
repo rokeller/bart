@@ -11,7 +11,7 @@ type cmdBackup struct {
 	cmdBase
 }
 
-// C implements Command.
+// Finished implements Command.
 func (c *cmdBackup) Finished() <-chan bool {
 	return c.finished
 }

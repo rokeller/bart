@@ -19,7 +19,7 @@ type cmdRestore struct {
 	queue chan domain.Entry
 }
 
-// C implements Command.
+// Finished implements Command.
 func (c *cmdRestore) Finished() <-chan bool {
 	return c.finished
 }
@@ -99,5 +99,4 @@ func (c *cmdRestore) handleRestoreQueue(id int) {
 
 	glog.Infof("[Restore-%d] Finished. Successfully restored %d file(s), failed to restore %d file(s).",
 		id, numSuccessful, numFailed)
-
 }
