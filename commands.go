@@ -37,7 +37,7 @@ func parseCommand() Command {
 	flag.Parse()
 	allArgs := flag.Args()
 	if len(allArgs) < 1 {
-		glog.Exitln("Expected command 'backup', 'restore', or 'clean'.")
+		glog.Exitln("Expected command 'backup', 'restore', or 'cleanup'.")
 	}
 
 	// Figure out what command we're dealing with first.
@@ -51,7 +51,7 @@ func parseCommand() Command {
 		cmdFactory = newCleanupCommand
 
 	default:
-		glog.Exitln("Expected command 'backup', 'restore', or 'clean'.")
+		glog.Exitln("Expected command 'backup', 'restore', or 'cleanup'.")
 	}
 
 	cmd := cmdFactory(allArgs[1:])

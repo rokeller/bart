@@ -19,7 +19,7 @@ type cmdRestore struct {
 	queue chan domain.Entry
 }
 
-// C implements Command.
+// Finished implements Command.
 func (c *cmdRestore) Finished() <-chan bool {
 	return c.finished
 }
