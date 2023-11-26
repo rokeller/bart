@@ -50,7 +50,8 @@ jobs:
         ARCHIVE_BASE_NAME="bart-${{ matrix.backupTarget }}-${{ matrix.os }}-${{ matrix.arch }}"
         GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build \
             -o _out/bart$EXT \
-            -tags '${{ matrix.backupTarget }} all'
+            -tags '${{ matrix.backupTarget }} all' \
+            -ldflags '-s -w'
         
         ls -l _out
         
