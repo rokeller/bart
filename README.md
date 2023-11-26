@@ -19,13 +19,6 @@ system.
 
 ## Usage
 
-> **Note**: When downloading packages from a release, the binaries contained
-> within are named `bart-<backupTarget>-<os>-<arch>` (and optionally with a file
-> extension `.exe` for Windows) and they are packaged up in `.tar.gz` (Linux)
-> or `.zip` files (Windows). You can safely rename these executables after
-> extraction to `bart` (or `bart.exe` on Windows) and call them with the usages
-> documented below, or you can call them just using their names from the packages.
-
 `bart` has a few sub-commands:
 
 * `backup` to run in backup mode, in which `bart` looks for files that are
