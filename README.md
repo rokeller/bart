@@ -1,6 +1,8 @@
 # bart - backup and restore tool
 
 [![Build](https://github.com/rokeller/bart/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/rokeller/bart/actions/workflows/build.yml)
+[![GitHub release (with filter)](https://img.shields.io/github/v/release/rokeller/bart?filter=v*)](https://github.com/rokeller/bart/releases/latest)
+
 
 ## Overview
 
