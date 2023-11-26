@@ -30,7 +30,6 @@ func (v deletingVisitor) VisitDir(path string, d fs.DirEntry) {
 func (v deletingVisitor) VisitFile(relPath string, f fs.DirEntry) {
 	entry := v.a.GetEntry(relPath)
 	if nil == entry {
-		// TODO: whatif
 		v.queue <- deleteFromLocal{
 			relPath:      relPath,
 			absolutePath: path.Join(v.rootDir, relPath),

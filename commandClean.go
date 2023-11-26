@@ -121,7 +121,6 @@ func (c *cmdCleanup) cleanupBackup() {
 
 		_, err := os.Stat(absLocalPath)
 		if errors.Is(err, os.ErrNotExist) {
-			// TODO: whatif
 			if glog.V(3) {
 				glog.Infof("Local file '%s' not found. Queue deletion of '%s' from backup",
 					absLocalPath, entry.RelPath)
@@ -159,6 +158,13 @@ func (c *cmdCleanup) handleCleanupQueue(id int) {
 			// Remove the entry from the backup, and from the backup index.
 			glog.V(1).Infof("[Cleanup-%d] Remove file '%s' from backup ...",
 				id, m.Entry.RelPath)
+
+			if c.args.whatIf {
+				numSuccessful++
+				fmt.Println(m.Entry.RelPath)
+				continue
+			}
+
 			if err := c.archive.Delete(m.Entry); nil != err {
 				numFailed++
 				glog.Errorf("[Cleanup-%d] Removal of file '%s' failed: %v",
@@ -172,6 +178,13 @@ func (c *cmdCleanup) handleCleanupQueue(id int) {
 			// Remove the file from the local file system.
 			glog.V(1).Infof("[Cleanup-%d] Remove local file '%s' ...",
 				id, m.relPath)
+
+			if c.args.whatIf {
+				numSuccessful++
+				fmt.Println(m.relPath)
+				continue
+			}
+
 			if err := os.Remove(m.absolutePath); nil != err {
 				numFailed++
 				glog.Errorf("[Cleanup-%d] Removal of local file '%s' failed: %v",
