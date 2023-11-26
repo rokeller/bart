@@ -1,5 +1,7 @@
 # bart - backup and restore tool
 
+[![Build](https://github.com/rokeller/bart/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/rokeller/bart/actions/workflows/build.yml)
+
 ## Overview
 
 `bart` is a simple backup/restore tool for data stored in a local file system.
