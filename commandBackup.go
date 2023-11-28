@@ -21,7 +21,7 @@ func (c *cmdBackup) Run() {
 	defer c.signalFinished()
 
 	// Visit local files and upload the ones missing or changed.
-	visitor := NewArchivingVisitor(c.archive, c.args.degreeOfParallelism)
+	visitor := NewArchivingVisitor(c.args, c.archive)
 	err := inspection.Discover(c.args.localRoot, visitor)
 	if nil != err {
 		glog.Errorf("Discovery failed: %v", err)

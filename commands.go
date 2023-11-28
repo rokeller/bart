@@ -21,6 +21,7 @@ type commonArguments struct {
 	backupName          string
 	localRoot           string
 	degreeOfParallelism int
+	whatIf              bool
 }
 
 type Command interface {
@@ -66,6 +67,8 @@ func addCommonArgs(flagset *flag.FlagSet) *commonArguments {
 		"path", ".", "The path to the directory to backup and/or restore.")
 	flagset.IntVar(&commonArgs.degreeOfParallelism,
 		"p", runtime.NumCPU(), "The degree of parallelism to use.")
+	flagset.BoolVar(&commonArgs.whatIf,
+		"whatif", false, "Set to true to see what bart would do without actually doing.")
 
 	updateFlags(flagset)
 

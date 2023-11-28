@@ -3,7 +3,6 @@
 [![Build](https://github.com/rokeller/bart/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/rokeller/bart/actions/workflows/build.yml)
 [![GitHub release (with filter)](https://img.shields.io/github/v/release/rokeller/bart?filter=v*)](https://github.com/rokeller/bart/releases/latest)
 
-
 ## Overview
 
 `bart` is a simple backup/restore tool for data stored in a local file system.
@@ -29,6 +28,11 @@ system.
   the backup archive and checks if they're present locally too.
 * `cleanup` to remove files in the backup archive or locally depending on the
   `-l` (location) flag.
+
+Each of the sub-commands supports the `-whatif` flag. When the flag is specified,
+`bart` lists (on `stdout`) the files that would be affected, but does _not_
+actually back them up, restore them, or clean them up. Thus, the `-whatif` flag
+can be used to determine _what_ would be done _if_ it was done for real.
 
 You can get more information on the flags available for each sub-command by
 running

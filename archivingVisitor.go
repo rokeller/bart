@@ -11,19 +11,24 @@ import (
 )
 
 type archivingVisitor struct {
-	a     archiving.Archive
-	wg    *sync.WaitGroup
-	queue chan domain.Entry
+	a      archiving.Archive
+	whatif bool
+	wg     *sync.WaitGroup
+	queue  chan domain.Entry
 }
 
-func NewArchivingVisitor(a archiving.Archive, degreeOfParallelism int) archivingVisitor {
+func NewArchivingVisitor(
+	commonArgs commonArguments,
+	a archiving.Archive,
+) archivingVisitor {
 	v := archivingVisitor{
-		a:     a,
-		wg:    &sync.WaitGroup{},
-		queue: make(chan domain.Entry, degreeOfParallelism*2),
+		a:      a,
+		whatif: commonArgs.whatIf,
+		wg:     &sync.WaitGroup{},
+		queue:  make(chan domain.Entry, commonArgs.degreeOfParallelism*2),
 	}
 
-	for i := 0; i < degreeOfParallelism; i++ {
+	for i := 0; i < commonArgs.degreeOfParallelism; i++ {
 		v.wg.Add(1)
 		go func(id int) {
 			defer v.wg.Done()
@@ -72,6 +77,13 @@ func (v archivingVisitor) handleUploadQueue(id int) {
 		}
 
 		glog.V(1).Infof("[Uploader-%d] Backup file '%s' ...", id, entry.RelPath)
+
+		if v.whatif {
+			numSuccessful++
+			fmt.Println(entry.RelPath)
+			continue
+		}
+
 		if err := v.a.Backup(entry); nil != err {
 			numFailed++
 			glog.Errorf("[Uploader-%d] Backup of file '%s' failed: %v", id, entry.RelPath, err)
