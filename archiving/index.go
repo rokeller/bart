@@ -98,34 +98,53 @@ func (i *Index) load() {
 	}
 }
 
+// walkIndex walks through the index. It is the caller's responsibility to make
+// sure there is mutually exclusive access to the index, e.g. through the use
+// of Index.sync, or by calling before index message handling has started or
+// after it has finished.
 func (i *Index) walkIndex(fn func(domain.Entry, EntryFlags) error) error {
-	// Always walk with message handler synchronization.
-	return i.walkIndexWithSync(true, fn)
-}
-
-// walkIndexWithSync walks through the index. It is the caller's responsibility
-// to use a proper value for `useSync` to indicate whether the walk must be
-// synced with the message handler.
-func (i *Index) walkIndexWithSync(useSync bool, fn func(domain.Entry, EntryFlags) error) error {
 	var err error
 	err = nil
-	walk := func() {
-		for key, value := range i.entries {
-			entry := domain.Entry{
-				RelPath:       key,
-				EntryMetadata: value.EntryMetadata,
-			}
 
-			if err = fn(entry, value.EntryFlags); nil != err {
-				return
-			}
+	for key, value := range i.entries {
+		entry := domain.Entry{
+			RelPath:       key,
+			EntryMetadata: value.EntryMetadata,
+		}
+
+		if err = fn(entry, value.EntryFlags); nil != err {
+			break
 		}
 	}
 
-	if useSync {
-		i.sync(walk)
-	} else {
-		walk()
+	return err
+}
+
+// walkIndexSnapshot creates a snapshot of the current index and then walks the
+// entries of that snapshot, applying the given fn for every entry.
+func (i *Index) walkIndexSnapshot(fn func(domain.Entry, EntryFlags) error) error {
+	// Track a snapshot of the current index' keys.
+	snapshot := make(map[string]indexEntry)
+	extractKeys := func() {
+		for key, value := range i.entries {
+			snapshot[key] = value
+		}
+	}
+	i.sync(extractKeys)
+
+	// Now iterate through the snapshot applying the fn to every item.
+	var err error
+	err = nil
+
+	for key, value := range snapshot {
+		entry := domain.Entry{
+			RelPath:       key,
+			EntryMetadata: value.EntryMetadata,
+		}
+
+		if err = fn(entry, value.EntryFlags); nil != err {
+			break
+		}
 	}
 
 	return err

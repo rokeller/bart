@@ -136,6 +136,7 @@ terminate:
 }
 
 func (i *Index) handleMessage(msg message) {
+	glog.V(3).Infof("Handle message [%v] (%T) ...", msg, msg)
 	switch m := msg.(type) {
 	case setMessage:
 		if m.markDirty {
@@ -167,6 +168,8 @@ func (i *Index) handleMessage(msg message) {
 		close(m.start)
 
 	default:
-		glog.Warningf("Unsupported message type: %v", m)
+		glog.Warningf("Unsupported message type: %v (%T)", m, m)
 	}
+
+	glog.V(3).Infof("Handled message [%v] (%T).", msg, msg)
 }
