@@ -147,8 +147,9 @@ func (a Archive) Delete(entry domain.Entry) error {
 // FindLocallyMissing finds entries that are in the backup but not available
 // locally.
 func (a Archive) FindLocallyMissing(fn func(entry domain.Entry)) {
-	a.index.walkIndex(func(entry domain.Entry, flags EntryFlags) error {
-		if flags&(EntryFlagsPresentInLocal|EntryFlagsPresentInBackup) == EntryFlagsPresentInBackup {
+	a.index.walkIndexSnapshot(func(entry domain.Entry, flags EntryFlags) error {
+		if flags&(EntryFlagsPresentInLocal|EntryFlagsPresentInBackup) ==
+			EntryFlagsPresentInBackup {
 			fn(entry)
 		}
 
