@@ -78,10 +78,11 @@ func (c *cmdCleanup) Stop() {
 
 func newCleanupCommand(args []string) Command {
 	locationStr := "backup"
-	cleanFlags := flag.NewFlagSet("clean", flag.ExitOnError)
-	cleanFlags.StringVar(&locationStr, "l", "backup", "The location to clean: 'backup' to remove "+
-		"files missing locally from the backup, 'local' to remove files missing "+
-		"in the backup from the local file system.")
+	cleanFlags := flag.NewFlagSet("cleanup", flag.ExitOnError)
+	cleanFlags.StringVar(&locationStr, "l", "backup",
+		"The location to clean up: 'backup' to remove files missing locally "+
+			"from the backup, 'local' to remove files missing in the backup "+
+			"from the local file system.")
 	commonArgs := addCommonArgs(cleanFlags)
 	cleanFlags.Parse(args)
 
