@@ -9,7 +9,7 @@ require (
 	github.com/golang/glog v1.2.1
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef
 	golang.org/x/crypto v0.24.0
-	google.golang.org/protobuf v1.34.1
+	google.golang.org/protobuf v1.34.2
 )
 
 require (
