@@ -4,7 +4,7 @@ go 1.21.3
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.5.0
 	github.com/golang/glog v1.2.4
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef
