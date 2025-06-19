@@ -10,7 +10,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.1
 	github.com/golang/glog v1.2.5
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef
-	golang.org/x/crypto v0.38.0
+	golang.org/x/crypto v0.39.0
 	google.golang.org/protobuf v1.36.6
 )
 
@@ -24,5 +24,5 @@ require (
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/term v0.32.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/text v0.26.0 // indirect
 )
