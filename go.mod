@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.2
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.3
 	github.com/golang/glog v1.2.5
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef
 	golang.org/x/crypto v0.58.0
